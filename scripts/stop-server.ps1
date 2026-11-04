@@ -29,6 +29,11 @@ while ((Get-Date) -lt $deadline) {
 }
 if (Get-Process -Id $pidValue -ErrorAction SilentlyContinue) {
   & taskkill /F /PID $pidValue | Out-Null
+  Start-Sleep -Seconds 2
+}
+if (Get-Process -Id $pidValue -ErrorAction SilentlyContinue) {
+  Write-Host "FAILED to stop pid $pidValue"
+  exit 1
 }
 Remove-Item $PidFile -Force
 Write-Host "stopped pid $pidValue"

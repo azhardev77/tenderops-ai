@@ -22,8 +22,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -91,7 +93,15 @@ public class ExtractionService {
     String fee = null;
     String deadline = null;
     String key = properties.metaApi().key();
-    for (DocumentPage page : pages.findByTenderVersionIdOrderByPageNo(version.getId())) {
+    List<DocumentPage> docPages =
+        pages.findByTenderVersionIdOrderByPageNo(version.getId());
+    Map<Long, VisualRegion> regionsById = new HashMap<>();
+    for (DocumentPage page : docPages) {
+      for (VisualRegion region : regions.findByPageIdOrderById(page.getId())) {
+        regionsById.put(region.getId(), region);
+      }
+    }
+    for (DocumentPage page : docPages) {
       if (page.isNeedsHumanReview() || page.getTextContent() == null
           || page.getTextContent().isBlank()) {
         continue;
@@ -122,7 +132,7 @@ public class ExtractionService {
       }
       for (Extraction.RequirementItem item : result.requirements()) {
         all.add(requirements.save(toEntity(item, version.getId(), tender.getTitle(),
-            page.getPageNo(), page.getTextContent())));
+            page.getPageNo(), page.getTextContent(), regionsById)));
       }
     }
     applyMetadata(version, tender, reference, estimated, emd, fee, deadline);
@@ -175,7 +185,8 @@ public class ExtractionService {
   }
 
   private TenderRequirement toEntity(Extraction.RequirementItem item, long versionId,
-      String sourceDocument, int sourcePage, String pageText) {
+      String sourceDocument, int sourcePage, String pageText,
+      Map<Long, VisualRegion> regionsById) {
     TenderRequirement row = new TenderRequirement();
     row.setTenderVersionId(versionId);
     row.setClauseRef(item.clauseRef().trim());
@@ -246,12 +257,16 @@ public class ExtractionService {
     row.setConditionTree(treeJson);
     row.setSourceDocument(sourceDocument);
     row.setSourcePage(sourcePage);
-    row.setSourceRegionId(item.sourceRegionId());
+    VisualRegion linked = item.sourceRegionId() == null ? null
+        : regionsById.get(item.sourceRegionId());
+    if (item.sourceRegionId() != null && linked == null) {
+      LOG.warn("Ignoring bogus sourceRegionId {} for clause {} (no such region"
+          + " on version {})", item.sourceRegionId(), item.clauseRef(), versionId);
+    }
+    row.setSourceRegionId(linked == null ? null : item.sourceRegionId());
 
-    boolean visionOnly = item.sourceRegionId() != null && regions
-        .findById(item.sourceRegionId()).map(
-            region -> VisualRegion.CONTENT_MUSE.equals(region.getContentSource()))
-        .orElse(false);
+    boolean visionOnly = linked != null
+        && VisualRegion.CONTENT_MUSE.equals(linked.getContentSource());
     Optional<QuoteVerifier.VerifiedQuote> verified = visionOnly ? Optional.empty()
         : QuoteVerifier.verify(pageText, item.originalQuote());
     if (verified.isPresent()) {

@@ -24,6 +24,8 @@ data/storage). After context loss: re-read MASTER_PROMPT.md + this file.
   LIVE/LIVE NO_BID 40.00 golden-exact; probe-meta-api 6/6 200; compose config UNVERIFIED
   (no Docker CLI); TC-E2E-02 NOT_RUN (deadline; browsers install OK)). Next: deadline
   steps 2-6 (LIVE check record, README, SUBMISSION, hygiene, smoke).
+  Steps 2-4 done (LIVE_CONFORMANCE + README + SUBMISSION + DEMO_SCRIPT).
+  Next: step 5 final commit, step 6 clean-start smoke.
 - MODEL_API_KEY is PRESENT: LIVE verified (MUSE+LIVE, SAM+LIVE on golden v1; strict
   schema, SAM grammar, summary budget and tool/image capabilities probe-verified).
 
@@ -86,7 +88,8 @@ PASSED 2026-11-04. Cross-checked all 20 docs against each other and MASTER_PROMP
 | M5 Compliance core | PASSED | server 271/271 green (m5-gate5.log, MVN_EXIT 0): TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV + golden engine/pipeline + GEN-01/SEC-01 verdict halves | (M5 commit) |
 | M6 M6 APIs/agent/reports/E2E | PASSED | server 359/359 green (m6-gate.log, MVN_EXIT 0): TC-AGT-*/RPT-01/E2E-00/01 + company/tender/demo/matrix/decision/dashboard/audit APIs | (M6 commit) |
 | M7 client (9 screens, SSE hook, 35 tests) | PASSED | npm run build clean (m7-client-build.log); npm test 35/35 (m7-client-tests3.log); DemoApiTest 6/6 + AmendmentApiTest 4/4 incl new amendment-list endpoint | (M7 commit) |
-| M8 infra/scripts + AI live fixes | PASSED | mvn clean package 366/366 0 skipped 5:31 (m8-gate-server.log); npm ci/build/test green 35/35; sweep PASS; seed-demo exit 0 NO_BID 40.00; LIVE/LIVE golden-exact; probe 6/6 200; full-reset latch exit 3 + non-prod exit 0 | (M8 commit) |
+| M8 infra/scripts + AI live fixes | PASSED | mvn clean package 366/366 0 skipped 5:31 (m8-gate-server.log); npm ci/build/test green 35/35; sweep PASS; seed-demo exit 0 NO_BID 40.00; LIVE/LIVE golden-exact; probe 6/6 200; full-reset latch exit 3 + non-prod exit 0 | 0e25d94 |
+| Deadline: region-FK fix + live chain + docs | PASSED | bogus sourceRegionId nulled (red→green, +1 test); gate2 367/367 5:11; golden-demo exit 0 wall 592s (v1 NO_BID 40.00, v2 CONDITIONAL_BID 80.00 LIVE/LIVE, v3 BID 100.00, APPROVED, PDF+XLSX); README/SUBMISSION/DEMO_SCRIPT/LIVE_CONFORMANCE; timeSaved 62.54-75.71% (70% not consistently met) | (final commit) |
 | M9 extras (MUT/INV-500/bench/trace) | NOT_RUN | deadline mode: skipped unless time remains after steps 1-5 | |
 
 M4 failure-fix loop: (1) SAM transport refactor reintroduced dual-constructor DI ambiguity

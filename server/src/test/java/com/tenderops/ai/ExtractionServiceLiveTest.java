@@ -272,6 +272,32 @@ class ExtractionServiceLiveTest {
   }
 
   @Test
+  void bogusSourceRegionIdIsNulledPipelineContinues() throws Exception {
+    TenderVersion version = ingestV1();
+    overrideOutput = "{\"tender\": {}, \"requirements\": [{\"clauseRef\": \"4.1\","
+        + " \"category\": \"FINANCIAL\", \"mandatory\": true, \"metric\":"
+        + " \"AVG_ANNUAL_TURNOVER\", \"operator\": \"GTE\", \"amountText\": \"Rs 100 Cr\","
+        + " \"lookbackYears\": 3, \"sourceRegionId\": 999999,"
+        + " \"originalQuote\": \"Clause 4.1 The average annual turnover of the bidder over"
+        + " the last three audited financial years shall be not less than Rs 100 Cr.\","
+        + " \"confidence\": 0.9, \"amendmentAction\": \"NONE\"}]}";
+    overrideStatus = null;
+    try {
+      ExtractionService.ExtractResult result = extraction.extractVersion(version);
+      assertThat(result.museMode()).isEqualTo("LIVE");
+      assertThat(result.requirements()).hasSize(6);
+      assertThat(result.requirements()).allSatisfy(row ->
+          assertThat(row.getSourceRegionId()).isNull());
+      List<TenderRequirement> page3 = result.requirements().stream()
+          .filter(row -> row.getSourcePage() == 3).toList();
+      assertThat(page3).hasSize(1);
+      assertThat(page3.get(0).isQuoteVerified()).isTrue();
+    } finally {
+      overrideOutput = null;
+    }
+  }
+
+  @Test
   void totalLiveFailureDegradesToFallback() throws Exception {
     overrideOutput = null;
     overrideStatus = 500;

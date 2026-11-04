@@ -12,7 +12,7 @@ if [ -e "$OUT" ]; then
   exit 2
 fi
 new_secret() {
-  tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1"
+  head -c 4096 /dev/urandom | tr -dc 'A-Za-z0-9' | cut -c"1-$1"
 }
 {
   echo "MODEL_API_KEY=${MODEL_API_KEY:-}"

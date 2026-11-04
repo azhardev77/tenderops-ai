@@ -34,7 +34,11 @@ LOG="$ROOT/docs/test-logs/server.log"
 JAVA_BIN="${JAVA_HOME:-}/bin/java"
 [ -x "$JAVA_BIN" ] || JAVA_BIN="java"
 nohup "$JAVA_BIN" -jar "$JAR" >"$LOG" 2>"$ROOT/docs/test-logs/server.err" &
-echo $! > "$PIDFILE"
+LAUNCHED=$!
+if command -v taskkill >/dev/null 2>&1; then
+  WINPID="$(ps -p "$LAUNCHED" -o winpid= 2>/dev/null | tr -d ' ')"
+  [ -n "$WINPID" ] && LAUNCHED="$WINPID"
+fi
 for _ in $(seq 1 60); do
   if curl -fs -m 5 "http://localhost:$PORT/actuator/health" 2>/dev/null \
       | grep -q '"status":"UP"'; then
@@ -47,4 +51,9 @@ if ! curl -fs -m 5 "http://localhost:$PORT/actuator/health" 2>/dev/null \
   echo "server did not become healthy; see $LOG"
   exit 1
 fi
-echo "UP pid $(cat "$PIDFILE") profile $PROFILE http://localhost:$PORT (log $LOG)"
+if ! kill -0 "$LAUNCHED" 2>/dev/null; then
+  echo "server process $LAUNCHED died (a squatter may hold port $PORT); see $LOG"
+  exit 1
+fi
+echo "$LAUNCHED" > "$PIDFILE"
+echo "UP pid $LAUNCHED profile $PROFILE http://localhost:$PORT (log $LOG)"

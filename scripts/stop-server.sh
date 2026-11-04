@@ -21,13 +21,39 @@ case "$NAME" in java*|*java) ;; *)
   exit 2
   ;;
 esac
-kill "$PIDV"
+WINPID_OF() {
+  if command -v taskkill >/dev/null 2>&1; then
+    ps -p "$1" -o winpid= 2>/dev/null | tr -d ' '
+  else
+    echo "$1"
+  fi
+}
+terminate() {
+  if command -v taskkill >/dev/null 2>&1; then
+    taskkill /PID "$(WINPID_OF "$1")" >/dev/null 2>&1 || true
+  else
+    kill "$1" || true
+  fi
+}
+force_kill() {
+  if command -v taskkill >/dev/null 2>&1; then
+    taskkill /F /PID "$(WINPID_OF "$1")" >/dev/null 2>&1 || true
+  else
+    kill -9 "$1" || true
+  fi
+}
+terminate "$PIDV"
 for _ in $(seq 1 30); do
   kill -0 "$PIDV" 2>/dev/null || break
   sleep 0.5
 done
 if kill -0 "$PIDV" 2>/dev/null; then
-  kill -9 "$PIDV"
+  force_kill "$PIDV"
+  sleep 2
+fi
+if kill -0 "$PIDV" 2>/dev/null; then
+  echo "FAILED to stop pid $PIDV"
+  exit 1
 fi
 rm -f "$PIDFILE"
 echo "stopped pid $PIDV"

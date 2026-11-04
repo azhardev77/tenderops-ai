@@ -47,7 +47,6 @@ $log = "$Root\docs\test-logs\server.log"
 $proc = Start-Process -FilePath $java -ArgumentList "-jar", $Jar -WorkingDirectory $Root `
   -RedirectStandardOutput $log -RedirectStandardError "$Root\docs\test-logs\server.err" `
   -WindowStyle Hidden -PassThru
-$proc.Id | Out-File -Encoding ascii $PidFile
 $deadline = (Get-Date).AddMinutes(5)
 for (;;) {
   try {
@@ -59,4 +58,9 @@ for (;;) {
     exit 1
   }
 }
+if (-not (Get-Process -Id $proc.Id -ErrorAction SilentlyContinue)) {
+  Write-Host ("server process " + $proc.Id + " died; a squatter may hold port " + $port + "; see " + $log)
+  exit 1
+}
+$proc.Id | Out-File -Encoding ascii $PidFile
 Write-Host "UP pid $($proc.Id) profile $env:SPRING_PROFILES_ACTIVE http://localhost:$port (log $log)"
