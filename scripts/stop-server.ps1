@@ -1,4 +1,5 @@
 # TenderOps AI - stop the native server started by scripts/start-server (pid file only).
+# The pid file holds the Windows pid; either stop script works.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 $PidFile = "$Root\.run\server.pid"
