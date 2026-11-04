@@ -16,7 +16,9 @@ data/storage). After context loss: re-read MASTER_PROMPT.md + this file.
   FALLBACK). M4 AI extraction: PASSED (server 142/142, m4-gate5.log). M5 compliance core: PASSED
   (server 271/271, m5-gate5.log; 129 new compliance tests). M6 APIs/agent/reports/E2E: PASSED
   (server 359/359, m6-gate.log; 50 new tests; TC-AGT-01/02/03, TC-RPT-01, TC-E2E-00/01 green).
-  Next: M7 client.
+  M7 client: PASSED (npm run build 0 errors; npm test 35/35 incl TC-RT-09/10/11 + TC-VIS-09
+  client half; server amendment suites still green: DemoApiTest 6/6, AmendmentApiTest 4/4).
+  Next: M8 infra/scripts.
 - MODEL_API_KEY is EMPTY: every AI component runs in FALLBACK mode. LIVE was not tested.
 
 ## Feature matrix
@@ -31,7 +33,7 @@ Columns: REQ(doc) ARCH DOCS | SRV CLI API | UNIT INT E2E NEG | SEC PERF ACC — 
 | M4 AI extraction | AI_INTEGRATION, DOCUMENT_PROCESSING_PIPELINE | PASSED | — | TC-AI/QTE/GEN/SEC-extract, 142/142 total | PASSED |
 | M5 compliance core | COMPLIANCE_ENGINE §14 | PASSED | — | TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV, 271/271 total | PASSED |
 | M6 workflows/realtime/amend/agent/report | REALTIME_DESIGN, API_SPEC | PASSED | — | 50 new (company/tender/demo/matrix/decision/agent/report/dash/audit/E2E), 359/359 total | PASSED |
-| M7 client | FRONTEND_ARCHITECTURE | — | NOT_STARTED | component + RT-09/10/11 NOT_STARTED | NOT_STARTED |
+| M7 client | FRONTEND_ARCHITECTURE | — | PASSED | 35 Vitest (matrix/trace/chip/overlays/upload/401/banner/banned/RT-09/10/11), build clean | PASSED |
 | M8 infra | DEPLOYMENT_GUIDE | NOT_STARTED | NOT_STARTED | E2E-02 attempt | NOT_STARTED |
 | M9 verification + self-audit | TEST_REPORT etc. | NOT_STARTED | NOT_STARTED | MUT/INV/PRB + checklist | NOT_STARTED |
 
@@ -77,7 +79,8 @@ PASSED 2026-11-04. Cross-checked all 20 docs against each other and MASTER_PROMP
 | M4 AI extraction | PASSED | server 142/142 green (m4-gate5.log, MVN_EXIT 0): TC-AI-*, TC-QTE-01, TC-GEN-01/SEC-01 extraction halves, TC-VIS-10 | (M4 commit) |
 | M5 Compliance core | PASSED | server 271/271 green (m5-gate5.log, MVN_EXIT 0): TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV + golden engine/pipeline + GEN-01/SEC-01 verdict halves | (M5 commit) |
 | M6 M6 APIs/agent/reports/E2E | PASSED | server 359/359 green (m6-gate.log, MVN_EXIT 0): TC-AGT-*/RPT-01/E2E-00/01 + company/tender/demo/matrix/decision/dashboard/audit APIs | (M6 commit) |
-| M7..M9 | NOT_STARTED | | |
+| M7 client (9 screens, SSE hook, 35 tests) | PASSED | npm run build clean (m7-client-build.log); npm test 35/35 (m7-client-tests3.log); DemoApiTest 6/6 + AmendmentApiTest 4/4 incl new amendment-list endpoint | (M7 commit) |
+| M8..M9 | NOT_STARTED | | |
 
 M4 failure-fix loop: (1) SAM transport refactor reintroduced dual-constructor DI ambiguity
 → @Autowired on the 4-arg constructor. (2) Fallback operator cues broke on extraction
@@ -127,6 +130,19 @@ present). Restored Maven 3.9.6 (archive.apache.org zip → C:\apache-maven-3.9.6
 JDK 21 via the PyCharm JBR (C:\Program Files\JetBrains\PyCharm 2025.3.1.1\jbr);
 baseline 309/309 green before M6 work. Set JAVA_HOME to the JBR + Maven bin on PATH
 for every mvn invocation; offline flags unchanged.
+
+M7 failure-fix loop (1 product-adjacent fix, 4 test bugs — code was right):
+(1) API_SPEC documented polling as {events,lastSeq}; reality is a bare array →
+client matches reality, spec corrected. Live SSE data carries payload only, so the
+hook reads stage from payload.stage (verified in SseHub/WorkflowTx). (2) No RTL
+auto-cleanup without vitest globals → explicit afterEach(cleanup) in setup.ts.
+(3) Direct .click() does not flush React 18 state → fireEvent everywhere.
+(4) A PageViewer JSDoc sentence tripped the banned-text scan → reworded.
+(5) no @types/node: banned-text scan uses import.meta.glob raw (needs
+src/vite-env.d.ts reference for tsc). No new npm deps; node_modules from M1 sufficed.
+M7 also added server GET /tenders/{id}/amendments (UI needs the list) + 1 test.
+M7→M8 carryovers: none blocking. TC-E2E-02 (Playwright) pending to M8/M9; the client
+has no E2E runner yet (vitest only).
 
 M3 failure-fix loop: (1) PDFBox 3 bare PDFStreamEngine registers NO state operators → vector
 scans track own graphics state/CTM (else color/width/CTM silently default). (2) YDirAdj is

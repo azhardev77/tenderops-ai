@@ -41,6 +41,18 @@ export function clearToken(): void {
  * fetch wrapper: Bearer injection, ProblemDetail parsing, 401 redirect to /login.
  * Money arrives as strings and is never computed with here (CL-06).
  */
+export function redirectToLogin(): void {
+  clearToken();
+  if (window.location.pathname !== '/login') {
+    window.location.assign('/login');
+  }
+}
+
+export function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: 'Bearer ' + token } : {};
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -52,10 +64,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
   const response = await fetch(path, { ...options, headers });
   if (response.status === 401) {
-    clearToken();
-    if (window.location.pathname !== '/login') {
-      window.location.assign('/login');
-    }
+    redirectToLogin();
     throw new ApiError(401, 'Unauthorized', 'Authentication required');
   }
   if (!response.ok) {
@@ -74,4 +83,41 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     return undefined as T;
   }
   return (await response.json()) as T;
+}
+
+/** Multipart POST (file uploads): no JSON content type; the browser sets the boundary. */
+export async function apiMultipart<T>(path: string, form: FormData): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  });
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new ApiError(401, 'Unauthorized', 'Authentication required');
+  }
+  if (!response.ok) {
+    let detail = 'Request failed with status ' + response.status;
+    try {
+      const problem = (await response.json()) as { detail?: string };
+      if (problem.detail) detail = problem.detail;
+    } catch {
+      // keep default
+    }
+    throw new ApiError(response.status, 'Request failed', detail);
+  }
+  return (await response.json()) as T;
+}
+
+/** Binary GET (report downloads). */
+export async function apiBlob(path: string): Promise<Blob> {
+  const response = await fetch(path, { headers: authHeaders() });
+  if (response.status === 401) {
+    redirectToLogin();
+    throw new ApiError(401, 'Unauthorized', 'Authentication required');
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, 'Request failed', 'Download failed');
+  }
+  return await response.blob();
 }

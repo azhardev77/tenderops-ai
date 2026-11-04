@@ -116,6 +116,10 @@ Uploads an amendment, runs the pipeline for the new version, diffs + selective r
 ### POST /demo/load-corrigendum?tenderId= (dev/demo/test only)
 One-click demo corrigendum (`Corrigendum_1.pdf`). Same response.
 
+### GET /tenders/{id}/amendments
+Newest-first list: `[{id, baseVersionId, newVersionId, prevDecision, newDecision,
+scoreDelta}]`.
+
 ### GET /amendments/{id}/diff
 `{inserted: [clauseRef], deleted: [], modified: ["5.1","6.1"], thresholdChanges, operatorChanges,
 conditionTreeChanges, deadlineChanged: false, prevDecision, newDecision, scoreDelta: "40.00"}`.
@@ -153,8 +157,9 @@ input, output, latencyMs, error}]}`.
 ### GET /tender-versions/{id}/events (SSE)
 `text/event-stream`; `id:` = seq; `event:` = type; `data:` = JSON payload. Honors `Last-Event-ID`
 (replays seq > id). Heartbeat comment every 15 s. Requires Bearer token (client uses fetch reader).
-Polling equivalent: `GET /tender-versions/{id}/events?afterSeq=N` → `{events: [{seq, type, stage, payload,
-createdAt}], lastSeq}`.
+Polling equivalent: `GET /tender-versions/{id}/events?afterSeq=N` → bare JSON array
+`[{seq, type, stage, payload, createdAt}]` (seq ascending, capped at 1000 rows). Same shape for
+`GET /dashboard/events?afterSeq=N` (JOB_* + DECISION_UPDATED only).
 
 ## Admin & audit
 

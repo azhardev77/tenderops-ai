@@ -47,6 +47,27 @@ public class AmendmentController {
       String newDecision, String scoreDelta) {
   }
 
+  public record AmendmentListItem(long id, long baseVersionId, long newVersionId,
+      String prevDecision, String newDecision, String scoreDelta) {
+  }
+
+  @GetMapping("/tenders/{id}/amendments")
+  public List<AmendmentListItem> list(@PathVariable long id) {
+    CurrentUser current = CurrentUser.require();
+    Tender tender = tenders.findById(id)
+        .orElseThrow(() -> new NotFoundException("Tender not found"));
+    current.requireCompany(tender.getCompanyId());
+    List<AmendmentListItem> out = new ArrayList<>();
+    for (Amendment amendment : amendments.findByTenderIdOrderByIdDesc(id)) {
+      out.add(new AmendmentListItem(amendment.getId(), amendment.getBaseVersionId(),
+          amendment.getNewVersionId(), amendment.getPrevDecision(),
+          amendment.getNewDecision(),
+          amendment.getScoreDelta() == null ? null
+              : amendment.getScoreDelta().toPlainString()));
+    }
+    return out;
+  }
+
   private final TenderRepository tenders;
   private final AmendmentRepository amendments;
   private final AmendmentTx amendmentTx;

@@ -133,6 +133,37 @@ class DemoApiTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void amendmentListShowsLoads() {
+    AuthResponse owner = register("demolist-");
+    ResponseEntity<Map> loaded = rest.exchange("/api/v1/demo/load-rfp", HttpMethod.POST,
+        new HttpEntity<>(auth(owner.accessToken())), Map.class);
+    long tenderId = ((Number) loaded.getBody().get("tenderId")).longValue();
+    awaitJob(owner.accessToken(), ((Number) loaded.getBody().get("jobId")).longValue());
+
+    ResponseEntity<List> before = rest.exchange(
+        "/api/v1/tenders/" + tenderId + "/amendments", HttpMethod.GET,
+        new HttpEntity<>(auth(owner.accessToken())), List.class);
+    assertThat(before.getBody()).isEmpty();
+
+    ResponseEntity<Map> amended = rest.exchange(
+        "/api/v1/demo/load-corrigendum?tenderId=" + tenderId, HttpMethod.POST,
+        new HttpEntity<>(auth(owner.accessToken())), Map.class);
+    long amendmentId = ((Number) amended.getBody().get("amendmentId")).longValue();
+    awaitJob(owner.accessToken(), ((Number) amended.getBody().get("jobId")).longValue());
+
+    ResponseEntity<List> after = rest.exchange(
+        "/api/v1/tenders/" + tenderId + "/amendments", HttpMethod.GET,
+        new HttpEntity<>(auth(owner.accessToken())), List.class);
+    assertThat(after.getBody()).hasSize(1);
+    Map<String, Object> entry = (Map<String, Object>) after.getBody().get(0);
+    assertThat(((Number) entry.get("id")).longValue()).isEqualTo(amendmentId);
+    assertThat(entry.get("prevDecision")).isEqualTo("INSUFFICIENT_DATA");
+    assertThat(entry.get("newDecision")).isEqualTo("INSUFFICIENT_DATA");
+    assertThat(entry.get("scoreDelta")).isEqualTo("0.00");
+  }
+
+  @Test
   void corrigendumOfForeignTenderIsNotFound() {
     AuthResponse owner = register("demoown-");
     AuthResponse stranger = register("demostr-");
