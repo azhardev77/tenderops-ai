@@ -14,8 +14,9 @@ data/storage). After context loss: re-read MASTER_PROMPT.md + this file.
 - M1 Foundation: PASSED (server 57/57, client build+test green). M2 Demo bootstrap: PASSED (server 69/69
   green, m2-gate3.log). M3 ingestion + visual: PASSED (server 97/97, m3-gate8.log; probe NOT_RUN,
   FALLBACK). M4 AI extraction: PASSED (server 142/142, m4-gate5.log). M5 compliance core: PASSED
-  (server 271/271, m5-gate5.log; 129 new compliance tests). Next: M6 workflows, realtime,
-  amendments, agent, reports.
+  (server 271/271, m5-gate5.log; 129 new compliance tests). M6 APIs/agent/reports/E2E: PASSED
+  (server 359/359, m6-gate.log; 50 new tests; TC-AGT-01/02/03, TC-RPT-01, TC-E2E-00/01 green).
+  Next: M7 client.
 - MODEL_API_KEY is EMPTY: every AI component runs in FALLBACK mode. LIVE was not tested.
 
 ## Feature matrix
@@ -29,7 +30,7 @@ Columns: REQ(doc) ARCH DOCS | SRV CLI API | UNIT INT E2E NEG | SEC PERF ACC — 
 | M3 ingestion + visual | DOCUMENT_PROCESSING_PIPELINE, AI_INTEGRATION | PASSED | — | TC-ING/VIS, 97/97 total | PASSED |
 | M4 AI extraction | AI_INTEGRATION, DOCUMENT_PROCESSING_PIPELINE | PASSED | — | TC-AI/QTE/GEN/SEC-extract, 142/142 total | PASSED |
 | M5 compliance core | COMPLIANCE_ENGINE §14 | PASSED | — | TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV, 271/271 total | PASSED |
-| M6 workflows/realtime/amend/agent/report | REALTIME_DESIGN, API_SPEC | NOT_STARTED | — | TC-AMD/AGT/RPT/JOB/RT/E2E NOT_STARTED | NOT_STARTED |
+| M6 workflows/realtime/amend/agent/report | REALTIME_DESIGN, API_SPEC | PASSED | — | 50 new (company/tender/demo/matrix/decision/agent/report/dash/audit/E2E), 359/359 total | PASSED |
 | M7 client | FRONTEND_ARCHITECTURE | — | NOT_STARTED | component + RT-09/10/11 NOT_STARTED | NOT_STARTED |
 | M8 infra | DEPLOYMENT_GUIDE | NOT_STARTED | NOT_STARTED | E2E-02 attempt | NOT_STARTED |
 | M9 verification + self-audit | TEST_REPORT etc. | NOT_STARTED | NOT_STARTED | MUT/INV/PRB + checklist | NOT_STARTED |
@@ -75,7 +76,8 @@ PASSED 2026-11-04. Cross-checked all 20 docs against each other and MASTER_PROMP
 | M3 Ingestion + visual | PASSED | server 97/97 green (m3-gate8.log, MVN_EXIT 0): TC-ING-*, TC-VIS-01..08/11; probe NOT_RUN (no key) | (M3 commit) |
 | M4 AI extraction | PASSED | server 142/142 green (m4-gate5.log, MVN_EXIT 0): TC-AI-*, TC-QTE-01, TC-GEN-01/SEC-01 extraction halves, TC-VIS-10 | (M4 commit) |
 | M5 Compliance core | PASSED | server 271/271 green (m5-gate5.log, MVN_EXIT 0): TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV + golden engine/pipeline + GEN-01/SEC-01 verdict halves | (M5 commit) |
-| M6..M9 | NOT_STARTED | | |
+| M6 M6 APIs/agent/reports/E2E | PASSED | server 359/359 green (m6-gate.log, MVN_EXIT 0): TC-AGT-*/RPT-01/E2E-00/01 + company/tender/demo/matrix/decision/dashboard/audit APIs | (M6 commit) |
+| M7..M9 | NOT_STARTED | | |
 
 M4 failure-fix loop: (1) SAM transport refactor reintroduced dual-constructor DI ambiguity
 → @Autowired on the 4-arg constructor. (2) Fallback operator cues broke on extraction
@@ -101,6 +103,30 @@ needs the M6 amendment merge) → test now pins 6.2 PASS, NO_BID, 60.00, hash ch
 M5→M6 carryovers: pipeline-level v3 BID (needs corrigendum merge); checklist +
 clarification-question generators (§6.12); run/result/risk/decision persistence;
 ComplianceService.evaluate + RequirementEvaluator are the M6 seams (TC-AMD-02 spy point).
+ALL CLOSED in M6: v3 BID proven in TC-E2E-01; ChecklistService + ClarificationService;
+approval gate + audit; run persistence already in RunService, now served via matrix API.
+
+M6 failure-fix loop (2 product fixes, 4 test bugs — code was right):
+(1) Non-PDF upload returned 500: PdfRejectedException had no handler → mapped to 400
+(product fix). (2) Agent deterministic plan ignored condition-tree leaves, so composite
+5.1 (metric OTHER + tree) gathered no project evidence → plan now walks tree leaves
+(product fix). (3) Test cast structuredTable to List; real shape is {"rows":[...]} →
+fixed to rows + header cells. (4) Agent tools run on executor threads outside the test
+transaction: @Transactional fixtures are invisible to them → agent/matrix/report/E2E
+tests use own committed H2 databases + tagged PDFs. (5) AuditApiTest forgot that
+register audits USER_REGISTERED → totals fixed. (6) Surefire -Dtest takes commas, not
++, and every -D arg needs quoting in this shell (mechanics).
+M6→M7 carryovers: none blocking. Client halves pending: TC-VIS-09 (no validity text),
+TC-RT-09/10/11 (fetch-based SSE client), TC-E2E-02 (Playwright). Full API surface per
+API_SPECIFICATION.md is served; re-verify returns {jobId, runId:null} (spec updated).
+M6 also committed the previously-untracked M1–M5 source files (workflow/, amendment/,
+runs/, web controllers, V2 migration): HEAD did not contain the full green build.
+
+M6 toolchain note: Maven + JDK 21 were gone at session start (only JRE 21 + JDK 8
+present). Restored Maven 3.9.6 (archive.apache.org zip → C:\apache-maven-3.9.6) and
+JDK 21 via the PyCharm JBR (C:\Program Files\JetBrains\PyCharm 2025.3.1.1\jbr);
+baseline 309/309 green before M6 work. Set JAVA_HOME to the JBR + Maven bin on PATH
+for every mvn invocation; offline flags unchanged.
 
 M3 failure-fix loop: (1) PDFBox 3 bare PDFStreamEngine registers NO state operators → vector
 scans track own graphics state/CTM (else color/width/CTM silently default). (2) YDirAdj is

@@ -52,7 +52,9 @@ public class FinancialRecord {
   public Long getId() { return id; }
   public Long getCompanyId() { return companyId; }
   public String getFyLabel() { return fyLabel; }
+  public void setFyLabel(String fyLabel) { this.fyLabel = fyLabel; }
   public LocalDate getFyEndDate() { return fyEndDate; }
+  public void setFyEndDate(LocalDate fyEndDate) { this.fyEndDate = fyEndDate; }
   public BigDecimal getTurnover() { return turnover; }
   public void setTurnover(BigDecimal turnover) { this.turnover = turnover; }
   public BigDecimal getNetWorth() { return netWorth; }

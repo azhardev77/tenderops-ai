@@ -17,4 +17,6 @@ public interface AuditLogRepository extends Repository<AuditLog, Long> {
       Pageable pageable);
 
   long countByCompanyId(Long companyId);
+
+  long countByCompanyIdAndEntityType(Long companyId, String entityType);
 }

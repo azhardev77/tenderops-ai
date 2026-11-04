@@ -81,7 +81,9 @@ calculationTrace: {formula, operands: {string:string}, threshold, comparison, ve
 evidenceIds[], provenance, contextHash}, copied}]}`.
 
 ### POST /tender-versions/{id}/re-verify
-Re-runs ONLY the Java engine on current requirements (never re-calls AI). 202 → `{runId, jobId}`.
+Re-runs ONLY the Java engine on current requirements (never re-calls AI). 202 →
+`{jobId, runId: null}` — the run id does not exist yet; poll `GET /jobs/{jobId}` until
+`COMPLETED`, then read the new run via `GET /tender-versions/{id}/matrix` (latest).
 
 ## Risks, checklist, clarifications, summary
 

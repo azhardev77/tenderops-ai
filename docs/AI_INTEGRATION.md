@@ -135,3 +135,29 @@ SAM grammar lines) so TC-AI-*/TC-VIS-* run without a key or network.
 Every compliance run stores `museMode` + `samMode`. LIVE is recorded only when a real HTTP call to
 `api.meta.ai` returned 2xx AND its output was used. Test doubles never produce LIVE. UI + reports show
 the labels; FALLBACK runs are "not representative" for the time-saved headline.
+
+## 8. Verification agent adapter (M6, section 8)
+
+`AgentService` runs a bounded loop (max 10 steps, 10 s per tool, 120 s per run) over six tools
+(`AgentTools`: `get_company_financials`, `search_company_projects`, `verify_certificates`,
+`get_requirement`, `find_missing_documents`, `run_deterministic_compliance`). Tool arguments are
+validated strictly (unknown tools/params and mistyped values return structured errors); every
+step persists to `agent_steps` with latency and emits `AGENT_STEP`; the persisted verdict always
+equals the Java engine output even when the model asserts otherwise (TC-AGT-03).
+
+Driver selection: MODEL_DRIVEN only when `MODEL_API_KEY` is non-empty AND
+`tenderops.muse.tool-calling` is true AND at least one model response was actually used — otherwise
+the deterministic orchestrator runs the fixed plan labelled FALLBACK_DETERMINISTIC (never presented
+as model-driven). The model-driven request reuses the Responses endpoint
+(`{model, input, max_output_tokens}`) and expects this JSON (UNVERIFIED — no official tool-call
+schema was confirmed; handled through this configurable adapter per H4):
+
+```json
+{"tool_calls": [{"name": "get_requirement", "arguments": {"requirementId": 12}}],
+ "verdictAssertion": "PASS", "explanation": "free text", "done": false}
+```
+
+`verdictAssertion` is advisory only: it is recorded in a `MODEL_SUMMARY` step for audit and can
+never become the persisted verdict. Requirement quotes sent to the model are R4-wrapped excerpts.
+TC-AGT-01/02/03 run against an `HttpServer` scripted double; live tool-calling is UNVERIFIED
+(no key was available, so the double's shape is provisional).

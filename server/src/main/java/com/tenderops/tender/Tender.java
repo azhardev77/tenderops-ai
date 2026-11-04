@@ -28,6 +28,9 @@ public class Tender {
   @Column(name = "created_at", nullable = false)
   private OffsetDateTime createdAt;
 
+  @Column(name = "updated_at", nullable = false)
+  private OffsetDateTime updatedAt;
+
   protected Tender() {}
 
   public Tender(Long companyId, String title, String reference) {
@@ -35,6 +38,7 @@ public class Tender {
     this.title = title;
     this.reference = reference;
     this.createdAt = OffsetDateTime.now();
+    this.updatedAt = this.createdAt;
   }
 
   public Long getId() { return id; }
@@ -43,4 +47,6 @@ public class Tender {
   public String getReference() { return reference; }
   public void setReference(String reference) { this.reference = reference; }
   public OffsetDateTime getCreatedAt() { return createdAt; }
+  public OffsetDateTime getUpdatedAt() { return updatedAt; }
+  public void setUpdatedAt(OffsetDateTime updatedAt) { this.updatedAt = updatedAt; }
 }

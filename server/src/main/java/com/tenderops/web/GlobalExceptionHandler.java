@@ -1,5 +1,6 @@
 package com.tenderops.web;
 
+import com.tenderops.common.PdfRejectedException;
 import com.tenderops.security.ResourceNotVisibleException;
 import java.util.Map;
 import java.util.TreeMap;
@@ -55,6 +56,36 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(EmailTakenException.class)
   public ProblemDetail handleEmailTaken(EmailTakenException e) {
     return problem(HttpStatus.CONFLICT, "Conflict", e.getMessage());
+  }
+
+  @ExceptionHandler(ConflictException.class)
+  public ProblemDetail handleConflictState(ConflictException e) {
+    return problem(HttpStatus.CONFLICT, "Conflict", e.getMessage());
+  }
+
+  @ExceptionHandler(JobAlreadyActiveException.class)
+  public ResponseEntity<ProblemDetail> handleConflict(JobAlreadyActiveException e) {
+    ProblemDetail problem = problem(HttpStatus.CONFLICT, "Conflict", e.getMessage());
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+  }
+
+  @ExceptionHandler(AmendmentNotReadyException.class)
+  public ResponseEntity<ProblemDetail> handleNotReady(AmendmentNotReadyException e) {
+    ProblemDetail problem = problem(HttpStatus.CONFLICT, "Conflict", e.getMessage());
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+  }
+
+  @ExceptionHandler(BadRequestException.class)
+  public ResponseEntity<ProblemDetail> handleBadRequest(BadRequestException e) {
+    ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "Bad request", e.getMessage());
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
+  }
+
+  @ExceptionHandler(PdfRejectedException.class)
+  public ResponseEntity<ProblemDetail> handlePdfRejected(PdfRejectedException e) {
+    ProblemDetail problem =
+        problem(HttpStatus.BAD_REQUEST, "Bad request", "PDF rejected: " + e.reason());
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(problem);
   }
 
   @ExceptionHandler(RateLimitExceededException.class)
