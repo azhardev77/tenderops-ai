@@ -6,7 +6,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.sql.Types;
 import java.time.OffsetDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "company_documents")
@@ -26,6 +28,7 @@ public class CompanyDocument {
   private String storagePath;
 
   @Column(nullable = false, length = 64, columnDefinition = "CHAR(64)")
+  @JdbcTypeCode(Types.CHAR)
   private String sha256;
 
   @Column(name = "mime_type", nullable = false)

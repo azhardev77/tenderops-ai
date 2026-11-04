@@ -67,7 +67,7 @@ tenderops:
     baseline-minutes-per-page: 4.0
     review-minutes-per-item: 2.0
   rule-version: "1.0"
-  storage-dir: ./data/storage
+  storage-dir: ${TENDEROPS_STORAGE_DIR:./data/storage}
   seeder:
     enabled: true
   cors:

@@ -295,4 +295,55 @@ class MuseSparkExtractorTest {
     }
     assertThat(closings).isEqualTo(1);
   }
+
+  @Test
+  void strictSchemaRequiresEveryPropertyKey() throws Exception {
+    enqueue(Behavior.success(goldenPage(3)));
+    extractor.extract("doc.pdf", 3, "Clause 4.1 text");
+
+    JsonNode schema = objectMapper.readTree(firstCaptured().body())
+        .get("text").get("format").get("schema");
+    assertStrictCompliant(schema, "#");
+  }
+
+  private static void assertStrictCompliant(JsonNode node, String path) {
+    if (node.has("properties")) {
+      assertThat(node.has("additionalProperties"))
+          .as("%s needs additionalProperties", path).isTrue();
+      assertThat(node.get("additionalProperties").asBoolean())
+          .as("%s needs additionalProperties=false", path).isFalse();
+      List<String> required = new ArrayList<>();
+      node.path("required").forEach(key -> required.add(key.asText()));
+      List<String> keys = new ArrayList<>();
+      node.get("properties").fieldNames().forEachRemaining(keys::add);
+      assertThat(required).as("%s required must list every property", path)
+          .containsExactlyInAnyOrderElementsOf(keys);
+      for (String key : keys) {
+        assertStrictCompliant(node.get("properties").get(key), path + "/" + key);
+      }
+    }
+    if (node.has("items")) {
+      assertStrictCompliant(node.get("items"), path + "[]");
+    }
+  }
+
+  @Test
+  void stringEncodedConditionTreeParses() {
+    String tree = "{\"op\":\"OR\",\"children\":["
+        + "{\"metric\":\"AVG_ANNUAL_TURNOVER\",\"operator\":\"GTE\"},"
+        + "{\"metric\":\"NET_WORTH\",\"operator\":\"GTE\"}]}";
+    String ok = "{\"tender\": {}, \"requirements\": [{\"clauseRef\": \"5.1\","
+        + " \"metric\": \"OTHER\", \"operator\": \"GTE\", \"originalQuote\": \"q\","
+        + " \"confidence\": 0.8, \"conditionTree\": " + quoteJson(tree) + "}]}";
+    enqueue(Behavior.success(ok));
+
+    Extraction.Result result = extractor.extract("doc.pdf", 5, "Clause 5.1 q");
+
+    assertThat(result.requirements()).hasSize(1);
+    ConditionNode parsed = result.requirements().get(0).conditionTree();
+    assertThat(parsed.isBranch()).isTrue();
+    assertThat(parsed.op()).isEqualTo("OR");
+    assertThat(parsed.children()).hasSize(2);
+    assertThat(hitCount()).isEqualTo(1);
+  }
 }

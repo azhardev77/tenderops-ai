@@ -7,7 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.sql.Types;
 import java.time.OffsetDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "tender_versions")
@@ -31,6 +33,7 @@ public class TenderVersion {
   private String kind;
 
   @Column(nullable = false, length = 64, columnDefinition = "CHAR(64)")
+  @JdbcTypeCode(Types.CHAR)
   private String sha256;
 
   @Column(name = "storage_path", nullable = false, length = 512)

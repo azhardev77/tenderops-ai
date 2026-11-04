@@ -7,6 +7,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.sql.Types;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "tender_requirements")
@@ -83,6 +85,7 @@ public class TenderRequirement {
   private BigDecimal confidence;
 
   @Column(nullable = false, length = 64, columnDefinition = "CHAR(64)")
+  @JdbcTypeCode(Types.CHAR)
   private String fingerprint;
 
   @Column(name = "amendment_action", length = 16)

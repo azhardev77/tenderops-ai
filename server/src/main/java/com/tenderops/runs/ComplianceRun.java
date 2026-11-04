@@ -7,7 +7,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.sql.Types;
 import java.time.OffsetDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
 
 @Entity
 @Table(name = "compliance_runs")
@@ -28,6 +30,7 @@ public class ComplianceRun {
 
   @Column(name = "evaluation_context_hash", nullable = false, length = 64,
       columnDefinition = "CHAR(64)")
+  @JdbcTypeCode(Types.CHAR)
   private String evaluationContextHash;
 
   @Column(name = "rule_version", nullable = false, length = 16)

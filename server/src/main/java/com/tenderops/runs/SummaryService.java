@@ -22,8 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Executive bid summary (section 6.12): Muse strictly from structured verified facts
- * with a Java grounding check, else a labelled template fallback. The live path is
- * UNVERIFIED until a keyed probe exercises it.
+ * with a Java grounding check, else a labelled template fallback. Live-verified:
+ * low reasoning effort + a 2000-token budget (default high-effort reasoning
+ * exhausts smaller budgets before emitting text).
  */
 @Service
 public class SummaryService {
@@ -140,23 +141,27 @@ public class SummaryService {
   }
 
   private String museSummary(List<String> facts, String key) {
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("model", properties.metaApi().museModel());
-    body.put("input", "Write a concise executive bid summary strictly from these "
-        + "verified facts. Use no other numbers, amounts or dates. Facts: "
-        + String.join(" | ", facts));
-    body.put("max_output_tokens", 600);
-    String json;
-    try {
-      json = mapper.writeValueAsString(body);
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Cannot serialize summary request", e);
-    }
+    String json = summaryRequestJson(mapper, properties.metaApi().museModel(), facts);
     String url = properties.metaApi().baseUrl() + properties.metaApi().responsesPath();
     String response = transport.postJson(url, key, json,
         properties.metaApi().requestTimeoutMs(), properties.metaApi().maxAttempts(),
         properties.metaApi().backoffInitialMs(), outcome -> {
         });
     return MetaApiTransport.extractOutputText(mapper, response);
+  }
+
+  static String summaryRequestJson(ObjectMapper mapper, String model, List<String> facts) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("model", model);
+    body.put("input", "Write a concise executive bid summary strictly from these "
+        + "verified facts. Use no other numbers, amounts or dates. Facts: "
+        + String.join(" | ", facts));
+    body.put("max_output_tokens", 2000);
+    body.put("reasoning", Map.of("effort", "low"));
+    try {
+      return mapper.writeValueAsString(body);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Cannot serialize summary request", e);
+    }
   }
 }

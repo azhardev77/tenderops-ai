@@ -26,4 +26,7 @@ echo "=== client: npm test ==="
 testLog="$ROOT/docs/test-logs/verify-client-test-$stamp.log"
 if npm test >"$testLog" 2>&1; then echo "client tests: passed";
 else failed=1; echo "CLIENT TESTS FAILED (see $testLog)"; tail -40 "$testLog"; fi
+echo "=== secret sweep ==="
+if bash "$ROOT/scripts/secret-sweep.sh"; then echo "secret sweep: passed";
+else failed=1; echo "SECRET SWEEP FAILED"; fi
 if [ "$failed" -ne 0 ]; then echo "VERIFY-ALL: FAILED"; exit 1; else echo "VERIFY-ALL: PASSED"; fi

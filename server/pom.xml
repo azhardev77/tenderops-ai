@@ -27,6 +27,9 @@
     <!-- JUnit pinned to 5.12.2 (not Boot's 5.11.4): the offline sandbox cache lacks
          junit-platform-launcher-1.11.4.jar; 5.12.2/1.12.2 is fully cached and API-compatible. -->
     <junit-jupiter.version>5.12.2</junit-jupiter.version>
+    <!-- Flyway pinned to 11.x (not Boot's 10.20.1): v10 refuses PostgreSQL 17
+         ("Unsupported Database"); v11 migrates both PG 17 and H2 identically. -->
+    <flyway.version>11.20.3</flyway.version>
   </properties>
 
   <dependencies>
@@ -53,6 +56,12 @@
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <!-- Flyway 11 split databases out of core: PG support needs this module. -->
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+      <version>${flyway.version}</version>
     </dependency>
     <dependency>
       <groupId>com.h2database</groupId>

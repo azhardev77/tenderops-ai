@@ -19,7 +19,13 @@ data/storage). After context loss: re-read MASTER_PROMPT.md + this file.
   M7 client: PASSED (npm run build 0 errors; npm test 35/35 incl TC-RT-09/10/11 + TC-VIS-09
   client half; server amendment suites still green: DemoApiTest 6/6, AmendmentApiTest 4/4).
   Next: M8 infra/scripts.
-- MODEL_API_KEY is EMPTY: every AI component runs in FALLBACK mode. LIVE was not tested.
+- M8 infra/scripts: PASSED (server 366/366 green from clean + fat jar, m8-gate-server.log;
+  client ci/build/test green 35/35; secret sweep PASS; OPS-01/02/03/05 green; TC-OPS-04
+  LIVE/LIVE NO_BID 40.00 golden-exact; probe-meta-api 6/6 200; compose config UNVERIFIED
+  (no Docker CLI); TC-E2E-02 NOT_RUN (deadline; browsers install OK)). Next: deadline
+  steps 2-6 (LIVE check record, README, SUBMISSION, hygiene, smoke).
+- MODEL_API_KEY is PRESENT: LIVE verified (MUSE+LIVE, SAM+LIVE on golden v1; strict
+  schema, SAM grammar, summary budget and tool/image capabilities probe-verified).
 
 ## Feature matrix
 
@@ -34,7 +40,7 @@ Columns: REQ(doc) ARCH DOCS | SRV CLI API | UNIT INT E2E NEG | SEC PERF ACC — 
 | M5 compliance core | COMPLIANCE_ENGINE §14 | PASSED | — | TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV, 271/271 total | PASSED |
 | M6 workflows/realtime/amend/agent/report | REALTIME_DESIGN, API_SPEC | PASSED | — | 50 new (company/tender/demo/matrix/decision/agent/report/dash/audit/E2E), 359/359 total | PASSED |
 | M7 client | FRONTEND_ARCHITECTURE | — | PASSED | 35 Vitest (matrix/trace/chip/overlays/upload/401/banner/banned/RT-09/10/11), build clean | PASSED |
-| M8 infra | DEPLOYMENT_GUIDE | NOT_STARTED | NOT_STARTED | E2E-02 attempt | NOT_STARTED |
+| M8 infra | DEPLOYMENT_GUIDE | PASSED | PASSED | gate 366/366 + 35/35, OPS-01..05, probe 6/6 | PASSED |
 | M9 verification + self-audit | TEST_REPORT etc. | NOT_STARTED | NOT_STARTED | MUT/INV/PRB + checklist | NOT_STARTED |
 
 ## Step C doc validation gate (log)
@@ -80,7 +86,8 @@ PASSED 2026-11-04. Cross-checked all 20 docs against each other and MASTER_PROMP
 | M5 Compliance core | PASSED | server 271/271 green (m5-gate5.log, MVN_EXIT 0): TC-MON/FIN/CUR/PRJ/CRT/LOG/DEC/SCR/TIME/RSK/INV + golden engine/pipeline + GEN-01/SEC-01 verdict halves | (M5 commit) |
 | M6 M6 APIs/agent/reports/E2E | PASSED | server 359/359 green (m6-gate.log, MVN_EXIT 0): TC-AGT-*/RPT-01/E2E-00/01 + company/tender/demo/matrix/decision/dashboard/audit APIs | (M6 commit) |
 | M7 client (9 screens, SSE hook, 35 tests) | PASSED | npm run build clean (m7-client-build.log); npm test 35/35 (m7-client-tests3.log); DemoApiTest 6/6 + AmendmentApiTest 4/4 incl new amendment-list endpoint | (M7 commit) |
-| M8..M9 | NOT_STARTED | | |
+| M8 infra/scripts + AI live fixes | PASSED | mvn clean package 366/366 0 skipped 5:31 (m8-gate-server.log); npm ci/build/test green 35/35; sweep PASS; seed-demo exit 0 NO_BID 40.00; LIVE/LIVE golden-exact; probe 6/6 200; full-reset latch exit 3 + non-prod exit 0 | (M8 commit) |
+| M9 extras (MUT/INV-500/bench/trace) | NOT_RUN | deadline mode: skipped unless time remains after steps 1-5 | |
 
 M4 failure-fix loop: (1) SAM transport refactor reintroduced dual-constructor DI ambiguity
 → @Autowired on the 4-arg constructor. (2) Fallback operator cues broke on extraction
@@ -143,6 +150,25 @@ src/vite-env.d.ts reference for tsc). No new npm deps; node_modules from M1 suff
 M7 also added server GET /tenders/{id}/amendments (UI needs the list) + 1 test.
 M7→M8 carryovers: none blocking. TC-E2E-02 (Playwright) pending to M8/M9; the client
 has no E2E runner yet (vitest only).
+
+M8 failure-fix loop (first live probe ever; 3 product fixes, all red→green with new tests):
+(1) Strict structured-output schema rejected: top-level `required` missed `tender`,
+nested objects missed keys, bare objects missed additionalProperties → full required
+arrays + nullable type-arrays + explicit tender props; conditionTree (recursive,
+unsupported) now travels as a JSON-encoded string (parser also tolerates the legacy
+object form: golden p4 stays green). (2) Live SAM grammar is
+<|box;x1;y1;x2;y2;c;w;h|> + <|mask;x;y;data|> with a <0f> header, not the provisional
+box[] grammar → parser rewritten; blank output = zero detections (still LIVE).
+(3) Summary starved: default high-effort reasoning consumed all 600 max tokens
+(status=incomplete) → effort low + 2000 budget; incomplete reason now surfaced in
+the transport error. Also: probe-meta-api had a `$name:` parser bug + missing
+-UseBasicParsing (never executed before); init-env used .NET-Core-only RNG Fill
+(PS 5.1 needs Create()/GetBytes).
+M8→deadline carryovers: README + SUBMISSION + DEMO_SCRIPT + LIVE record (steps 2-4),
+final hygiene + smoke (steps 5-6). UNVERIFIED: docker compose config/run (no Docker
+CLI/daemon). NOT_RUN: TC-E2E-02 full UI flow (browsers install OK, exit 0; no time
+for the spec), M9 extras (mutations, 500-iteration invariants, long benchmarks,
+deep traceability).
 
 M3 failure-fix loop: (1) PDFBox 3 bare PDFStreamEngine registers NO state operators → vector
 scans track own graphics state/CTM (else color/width/CTM silently default). (2) YDirAdj is

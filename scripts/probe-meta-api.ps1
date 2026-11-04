@@ -1,6 +1,6 @@
 # TenderOps AI - probe the Meta Model API (at most 10 minimal real calls).
-# Records path, status, redacted response shape, latency, capability yes/no.
-# The API key is NEVER written to logs or console output.
+# Sends the key ONLY to https://api.meta.ai/v1 (refuses any other host).
+# Prints status codes only. The API key is NEVER written to logs or console output.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
@@ -20,9 +20,10 @@ function Write-Probe($msg) {
   $msg | Tee-Object -FilePath $log -Append | Out-Null
   Write-Host $msg
 }
-function Redact($text, $secret) {
-  if ([string]::IsNullOrEmpty($secret)) { return $text }
-  return $text.Replace($secret, "***REDACTED***")
+$probeUri = $null
+if (-not [System.Uri]::TryCreate($apiBase, [System.UriKind]::Absolute, [ref]$probeUri) -or $probeUri.Host -ne "api.meta.ai") {
+  Write-Probe "REFUSED: the probe sends the key only to https://api.meta.ai/v1"
+  exit 2
 }
 if ([string]::IsNullOrEmpty($modelKey)) {
   Write-Probe "MODEL_API_KEY is empty: no live probe possible. Build to the claimed shape against test doubles (FALLBACK). LIVE was not tested."
@@ -30,26 +31,21 @@ if ([string]::IsNullOrEmpty($modelKey)) {
 }
 $calls = 0
 function Invoke-Probe($name, $method, $url, $body) {
-  if ($script:calls -ge 10) { Write-Probe "$name: SKIPPED (10-call budget exhausted)"; return }
+  if ($script:calls -ge 10) { Write-Probe "${name}: SKIPPED (10-call budget exhausted)"; return }
   $script:calls++
   $headers = @{ Authorization = ("Bearer " + $modelKey) }
-  $sw = [Diagnostics.Stopwatch]::StartNew()
   try {
-    if ($body -eq $null) { $r = Invoke-WebRequest -Method $method -Uri $url -Headers $headers -TimeoutSec 30 }
-    else { $r = Invoke-WebRequest -Method $method -Uri $url -Headers $headers -ContentType "application/json" -Body $body -TimeoutSec 30 }
-    $sw.Stop()
-    $shape = $r.Content
-    if ($shape.Length -gt 600) { $shape = $shape.Substring(0, 600) + "...[truncated]" }
-    Write-Probe ("$name: status=" + $r.StatusCode + " latencyMs=" + $sw.ElapsedMilliseconds + " body=" + (Redact $shape $modelKey))
+    if ($body -eq $null) { $r = Invoke-WebRequest -UseBasicParsing -Method $method -Uri $url -Headers $headers -TimeoutSec 30 }
+    else { $r = Invoke-WebRequest -UseBasicParsing -Method $method -Uri $url -Headers $headers -ContentType "application/json" -Body $body -TimeoutSec 30 }
+    Write-Probe ("${name}: status=" + $r.StatusCode)
   }
   catch {
-    $sw.Stop()
     $status = "ERROR"
     try { $status = [string]$_.Exception.Response.StatusCode.value__ } catch { }
-    Write-Probe ("$name: status=" + $status + " latencyMs=" + $sw.ElapsedMilliseconds + " error=" + (Redact $_.Exception.Message $modelKey))
+    Write-Probe ("${name}: status=" + $status)
   }
 }
-Write-Probe ("probe start base=" + $apiBase + " time=" + (Get-Date -Format o))
+Write-Probe ("probe start time=" + (Get-Date -Format o))
 Invoke-Probe "models-list" "Get" ($apiBase + "/models") $null
 Invoke-Probe "muse-text" "Post" ($apiBase + "/responses") '{"model":"muse-spark-1.3","input":"Reply with the single word OK."}'
 Invoke-Probe "muse-structured" "Post" ($apiBase + "/responses") '{"model":"muse-spark-1.3","input":"Return JSON.","text":{"format":{"type":"json_schema","name":"ok","strict":true,"schema":{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}}}}'
@@ -57,4 +53,4 @@ Invoke-Probe "muse-tools" "Post" ($apiBase + "/responses") '{"model":"muse-spark
 $tinyPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 Invoke-Probe "muse-image" "Post" ($apiBase + "/responses") ('{"model":"muse-spark-1.3","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"Describe this image in one word."},{"type":"input_image","image_url":"data:image/png;base64,' + $tinyPng + '"}]}]}')
 Invoke-Probe "sam-segment" "Post" ($apiBase + "/responses") ('{"model":"sam-3.1","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"circular official stamp"},{"type":"input_image","image_url":"data:image/png;base64,' + $tinyPng + '"}]}]}')
-Write-Probe ("probe done calls=" + $script:calls + " (budget 10). Record results in docs/AI_INTEGRATION.md 'Live probe results'. Key never logged.")
+Write-Probe ("probe done calls=" + $script:calls + " (budget 10). Key never logged.")

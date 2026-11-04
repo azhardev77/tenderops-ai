@@ -1,0 +1,13 @@
+.git/
+.gitignore
+target/
+node_modules/
+dist/
+.m2repo/
+.npm-cache/
+data/
+.env
+docs/test-logs/
+*.log
+client/dist/
+server/target/

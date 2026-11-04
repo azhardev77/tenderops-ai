@@ -160,9 +160,22 @@ public class MetaApiTransport {
     }
     if (chunks.isEmpty()) {
       LOG.warn("Meta response carried no output text");
-      throw new TransportFormatException("Meta response carries no output text");
+      throw new TransportFormatException(
+          "Meta response carries no output text" + incompleteSuffix(root));
     }
     return String.join("\n", chunks);
+  }
+
+  private static String incompleteSuffix(JsonNode root) {
+    String status = root.path("status").asText("");
+    JsonNode reason = root.path("incomplete_details").path("reason");
+    if (reason.isTextual()) {
+      return " [status=" + status + " reason=" + reason.asText() + "]";
+    }
+    if (!status.isBlank()) {
+      return " [status=" + status + "]";
+    }
+    return "";
   }
 
   private String messageOf(IOException e) {

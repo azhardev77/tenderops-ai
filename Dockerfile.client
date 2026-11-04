@@ -1,0 +1,13 @@
+# TenderOps AI client image: Vite build + nginx static server.
+FROM node:24-alpine AS build
+WORKDIR /src/client
+COPY client/package.json client/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY client/src ./src
+COPY client/index.html client/tsconfig.json client/vite.config.ts ./
+RUN npm run build
+
+FROM nginx:alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /src/client/dist /usr/share/nginx/html
+EXPOSE 80

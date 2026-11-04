@@ -22,4 +22,8 @@ Write-Host "=== client: npm test ==="
 $testLog = "$Root\docs\test-logs\verify-client-test-$stamp.log"
 & npm test > $testLog 2>&1
 if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "CLIENT TESTS FAILED (see $testLog)"; Get-Content -Tail 40 $testLog } else { Write-Host "client tests: passed" }
+Set-Location $Root
+Write-Host "=== secret sweep ==="
+& "$Root\scripts\secret-sweep.ps1"
+if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "SECRET SWEEP FAILED" } else { Write-Host "secret sweep: passed" }
 if ($failed) { Write-Host "VERIFY-ALL: FAILED"; exit 1 } else { Write-Host "VERIFY-ALL: PASSED" }

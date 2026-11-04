@@ -21,7 +21,7 @@ import org.springframework.stereotype.Component;
  * Live SAM 3.1 detector via the Meta Responses API (one request per candidate page × noun
  * phrase). Retries 429/5xx/timeouts with backoff honoring Retry-After, then throws
  * {@link SamUnavailableException} so the caller falls back. Results cached by
- * (image SHA-256, page, prompt). Built to the docs-verified shape; live behavior UNVERIFIED.
+ * (image SHA-256, page, prompt). Response grammar live-verified (see SamOutputParser).
  */
 @Component
 public class Sam31Detector implements VisualRegionDetector {

@@ -300,4 +300,25 @@ Create this structure inside P (adjust only with a documented reason):
 Deliver: (1) working monorepo with README containing exact PowerShell and bash commands (run server, run client, run tests, golden demo walkthrough, live check); (2) complete /docs package updated to match what was actually built; (3) TEST_REPORT.md, BENCHMARK_RESULTS.md, REQUIREMENTS_TRACEABILITY.md, SELF_AUDIT_REPORT.md, FINAL_DELIVERY_REPORT.md (what works, UNVERIFIED/NOT_RUN items, known limitations, honest assessment of the 70% target, how to reproduce every claim); (4) docs/DEMO_SCRIPT.md: a 3-minute judge walkthrough (load demo RFP -> live pipeline -> NO_BID -> corrigendum -> CONDITIONAL_BID -> add solvency certificate -> BID pending approval -> approve -> download report), stating the aiMode of each component during the demo.
 In your final message give: the full path of the project folder, the exact commands to re-run verification (scripts/verify-all, scripts/run-live-check), where the demo login password is (".env", never printed), and a plain list of everything not fully verified.
 
+## 17. APPROVAL-FRIENDLY EXECUTION (requested as section 15; appended as 17 because 15/16 exist; overrides nothing else)
+
+Muse Code stops for human review on "dangerous" shell stages. Avoid them so work continues without interruptions:
+17.1 Never kill processes by parsing netstat/Get-NetTCPConnection and Stop-Process -Force. scripts/start-server.(ps1|sh) and scripts/stop-server.(ps1|sh) own the lifecycle: start-server writes the PID of the process IT started to .run/server.pid; stop-server stops ONLY that PID (graceful first, then force) and deletes the pid file. Use only these scripts to start/stop the server.
+17.2 Never use destructive removal forms (rm -rf, Remove-Item -Recurse -Force, del /s) in ad-hoc commands. If cleanup is needed, put it in scripts/clean.(ps1|sh), which deletes only server/target, client/dist, and .run, and nothing else.
+17.3 Do not hold the jar file open while rebuilding: build to server/target as usual but stop the server via stop-server first; in tests use random free ports (server.port=0), never fixed ports.
+17.4 Batch work: prefer fewer, larger commands (scripts) over many tiny ones. Run long commands in the background with output redirected to docs/test-logs/ and poll the log files.
+17.5 Use only read/write inside the project folder, the Maven/npm caches, and the network hosts you need (api.meta.ai, Maven Central, registry.npmjs.org). Do not touch anything outside the project folder.
+17.6 If a command is still held for approval, do not retry variations of it: continue with independent work and report which command is waiting.
+17.7 The rest of this prompt stays fully in force (honesty rules H1-H8, golden data, tests). Resume from docs/PROGRESS_TRACKER.md.
+
+## 18. SECRETS HANDLING (requested as section 16; appended as 18 because 16/17 exist; overrides section 0.0 step 3 and any earlier instruction that involves reading .env)
+
+18.1 Never open, read, cat, grep, print, or log the CONTENTS of .env or of any variable/file holding MODEL_API_KEY, JWT_SECRET, DEMO_ADMIN_PASSWORD. You may only test whether .env exists (Test-Path / test -f).
+18.2 If .env is missing, create it ONLY through scripts/init-env.(ps1|sh): it generates JWT_SECRET and DEMO_ADMIN_PASSWORD with a CSPRNG, writes the file without echoing any value, and leaves MODEL_API_KEY empty unless it is already set in the process environment. The user pastes their API key into .env themselves.
+18.3 The server, client, and scripts load .env themselves; you never need the values. Tests use dummy test-only keys against local test doubles.
+18.4 To check key presence, run a script that prints only "MODEL_API_KEY: present" or "absent" — never the value, prefix, suffix, or length. scripts/probe-meta-api and scripts/run-live-check must send the key only to api.meta.ai and print status codes only.
+18.5 Never include secret values (or parts of them) in logs, docs, reports, test output, or commits. Add a secret sweep to scripts/verify-all that scans tracked files, docs/, and docs/test-logs/ for the pattern LLM_[0-9]+_ and for the values stored in .env, prints only PASS/FAIL, and fails the run if anything is found.
+18.6 If any tool output accidentally exposes a secret, stop, tell the user without repeating the value, and wait so they can rotate it.
+18.7 Everything else in MASTER_PROMPT.md (including the approval-friendly section 17) stays in force. Resume from docs/PROGRESS_TRACKER.md.
+
 END OF MASTER PROMPT  Begin now: Step 0.1 bootstrap (create the project folder, save MASTER_PROMPT.md, create .gitignore and .env), then Step A (environment checks), then Step B (docs).

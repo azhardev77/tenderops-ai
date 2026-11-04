@@ -1,19 +1,38 @@
 #!/usr/bin/env bash
-# TenderOps AI - run the golden flow in LIVE mode and print aiMode per component.
-# Requires: server running (scripts/run-server), MODEL_API_KEY set in .env for LIVE.
-set -u
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# TenderOps AI - TC-OPS-04 (bash mirror of run-live-check.ps1).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 BASE="http://localhost:8080"
-if [ -f "$ROOT/.env" ]; then set -a; . "$ROOT/.env"; set +a; fi
-if [ -z "${MODEL_API_KEY:-}" ]; then
-  echo "MODEL_API_KEY is empty: LIVE mode is not possible. Every AI component runs in FALLBACK mode."
-  echo "Set MODEL_API_KEY in .env, restart the server, and re-run for a LIVE check."
-  exit 2
+MODEL_KEY="$(grep -E '^MODEL_API_KEY=' "$ROOT/.env" 2>/dev/null | cut -d= -f2- || true)"
+if [ -z "$MODEL_KEY" ]; then
+  echo "SKIP: MODEL_API_KEY is empty; LIVE mode is impossible. Rerun with a key for TC-OPS-04."
+  exit 0
 fi
-LOGIN_JSON="$(printf '{"email":"demo@tenderops.local","password":"%s"}' "${DEMO_ADMIN_PASSWORD:-}")"
-TOKEN="$(curl -s -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' -d "$LOGIN_JSON" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).accessToken||'')}catch(e){console.log('')}})")"
-if [ -z "$TOKEN" ]; then echo "live-check failed: login did not return a token (is the server running?)"; exit 1; fi
-RESULT="$(curl -s -X POST "$BASE/api/v1/demo/live-check" -H "Authorization: Bearer $TOKEN" --max-time 600)"
-echo "LIVE CHECK RESULT"
-echo "$RESULT" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s);console.log('MUSE aiMode: '+r.museMode);console.log('SAM aiMode: '+r.samMode);console.log('decision: '+r.decision+' score: '+r.readinessScore);console.log(JSON.stringify(r,null,2))})"
+STAMP="$(date +%s)"
+REG=$(curl -fsS --max-time 60 -X POST "$BASE/api/v1/auth/register" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"livecheck-$STAMP@tenderops.local\",\"password\":\"livecheck-123456\",\"companyName\":\"LiveCheck Co\"}")
+TOKEN=$(echo "$REG" | python3 -c "import sys,json;print(json.load(sys.stdin)['accessToken'])")
+AUTH=(-H "Authorization: Bearer $TOKEN")
+START=$SECONDS
+LOADED=$(curl -fsS --max-time 60 -X POST "$BASE/api/v1/demo/load-rfp" "${AUTH[@]}")
+JOB=$(echo "$LOADED" | python3 -c "import sys,json;print(json.load(sys.stdin)['jobId'])")
+VER=$(echo "$LOADED" | python3 -c "import sys,json;print(json.load(sys.stdin)['versionId'])")
+for _ in $(seq 1 120); do
+  STATUS=$(curl -fsS --max-time 30 "$BASE/api/v1/jobs/$JOB" "${AUTH[@]}" | python3 -c "import sys,json;print(json.load(sys.stdin)['status'])")
+  [ "$STATUS" = "COMPLETED" ] && break
+  [ "$STATUS" = "FAILED" ] && { echo "live-check failed: job FAILED"; exit 1; }
+  sleep 5
+done
+MATRIX=$(curl -fsS --max-time 60 "$BASE/api/v1/tender-versions/$VER/matrix" "${AUTH[@]}")
+echo "LIVE CHECK RESULT (fresh company, wall $((SECONDS - START))s)"
+echo "$MATRIX" | python3 -c "
+import sys, json
+m = json.load(sys.stdin)
+print('MUSE aiMode:', m['museMode'])
+print('SAM aiMode:', m['samMode'])
+print('decision:', m['decision'], 'score:', m['readinessScore'])
+for r in m['rows']:
+    print(' ', r['requirement']['clauseRef'], r['verdict'], r['reasonCode'])
+sys.exit(0 if m['museMode'] == 'LIVE' and m['samMode'] == 'LIVE' else 1)
+" && echo "TC-OPS-04: PASS"

@@ -22,6 +22,14 @@ target/
 # Logs
 *.log
 docs/test-logs/*.tmp
+docs/test-logs/server.err
+
+# Native-run scratch (pid file, transient tokens/probes; see scripts/start-server)
+.run/
+# Second native storage dir (multi-instance runs; compose uses data/storage)
+data/storage-live/
+# Local Playwright browser binaries (TC-E2E-02 runs; users install to the default cache)
+.pw-browsers/
 
 # IDE / OS
 .idea/

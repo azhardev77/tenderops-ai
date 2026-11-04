@@ -1,6 +1,7 @@
 package com.tenderops.ai;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tenderops.common.PromptSanitizer;
 import com.tenderops.config.TenderopsProperties;
@@ -13,7 +14,7 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * Live Muse Spark requirement extractor (docs-verified Responses shape; live UNVERIFIED).
+ * Live Muse Spark requirement extractor (Responses shape + strict schema live-verified).
  * Sends the system prompt + R4-sandboxed excerpts, requests strict JSON-schema output when
  * enabled, validates (confidence range, clause keys, tree shape), retries validation
  * failures twice with error feedback, then throws {@link MuseFailedException} so the
@@ -106,7 +107,10 @@ public class MuseSparkExtractor implements RequirementExtractor {
         + "\"originalQuote\", \"confidence\", \"amendmentAction\", \"targetClauseRef\"}]}. "
         + "Metrics: AVG_ANNUAL_TURNOVER, NET_WORTH, SIMILAR_PROJECTS_COUNT_VALUE, "
         + "SIMILAR_PROJECTS_80_50_40, CERTIFICATE_VALID, SOLVENCY_CERTIFICATE, OTHER. "
-        + "Operators: GTE, GT, LTE, LT, EQ.";
+        + "Operators: GTE, GT, LTE, LT, EQ. conditionTree is a JSON-encoded string of "
+        + "the AND/OR tree ({\"op\", \"children\"} or null when the clause has no "
+        + "AND/OR structure); recursive object schemas are unsupported, so never "
+        + "emit it as an object.";
   }
 
   private String requestJson(String userText) {
@@ -137,40 +141,63 @@ public class MuseSparkExtractor implements RequirementExtractor {
     }
   }
 
+  /**
+   * Strict-mode schema (live-verified 2026-11-05): every object lists ALL its
+   * property keys in {@code required} and sets {@code additionalProperties} false;
+   * optionals are nullable. Recursive schemas are unsupported, so the condition
+   * tree travels as a JSON-encoded string.
+   */
   private Map<String, Object> extractionSchema() {
+    Map<String, Object> props = new LinkedHashMap<>();
+    props.put("clauseRef", Map.of("type", "string"));
+    props.put("category", nullable("string"));
+    props.put("mandatory", nullable("boolean"));
+    props.put("mandatoryAmbiguous", nullable("boolean"));
+    props.put("metric", nullable("string"));
+    props.put("operator", nullable("string"));
+    props.put("amountText", nullable("string"));
+    props.put("countValue", nullable("integer"));
+    props.put("lookbackYears", nullable("integer"));
+    Map<String, Object> tags = new LinkedHashMap<>();
+    tags.put("type", List.of("array", "null"));
+    tags.put("items", Map.of("type", "string"));
+    props.put("domainTags", tags);
+    props.put("certificateName", nullable("string"));
+    props.put("certificateLevel", nullable("integer"));
+    props.put("conditionTree", nullable("string"));
+    props.put("sourceRegionId", nullable("integer"));
+    props.put("originalQuote", nullable("string"));
+    props.put("confidence", Map.of("type", "number"));
+    props.put("amendmentAction", nullable("string"));
+    props.put("targetClauseRef", nullable("string"));
     Map<String, Object> requirement = new LinkedHashMap<>();
     requirement.put("type", "object");
-    requirement.put("properties", Map.ofEntries(
-        Map.entry("clauseRef", Map.of("type", "string")),
-        Map.entry("category", Map.of("type", "string")),
-        Map.entry("mandatory", Map.of("type", "boolean")),
-        Map.entry("mandatoryAmbiguous", Map.of("type", "boolean")),
-        Map.entry("metric", Map.of("type", "string")),
-        Map.entry("operator", Map.of("type", "string")),
-        Map.entry("amountText", Map.of("type", "string")),
-        Map.entry("countValue", Map.of("type", "integer")),
-        Map.entry("lookbackYears", Map.of("type", "integer")),
-        Map.entry("domainTags",
-            Map.of("type", "array", "items", Map.of("type", "string"))),
-        Map.entry("certificateName", Map.of("type", "string")),
-        Map.entry("certificateLevel", Map.of("type", "integer")),
-        Map.entry("conditionTree", Map.of("type", "object")),
-        Map.entry("sourceRegionId", Map.of("type", "integer")),
-        Map.entry("originalQuote", Map.of("type", "string")),
-        Map.entry("confidence", Map.of("type", "number")),
-        Map.entry("amendmentAction", Map.of("type", "string")),
-        Map.entry("targetClauseRef", Map.of("type", "string"))));
-    requirement.put("required",
-        List.of("clauseRef", "metric", "operator", "originalQuote", "confidence"));
+    requirement.put("properties", props);
+    requirement.put("required", new ArrayList<>(props.keySet()));
     requirement.put("additionalProperties", false);
+    Map<String, Object> tenderProps = new LinkedHashMap<>();
+    tenderProps.put("reference", nullable("string"));
+    tenderProps.put("estimatedValueText", nullable("string"));
+    tenderProps.put("emdText", nullable("string"));
+    tenderProps.put("tenderFeeText", nullable("string"));
+    tenderProps.put("deadlineText", nullable("string"));
+    Map<String, Object> tender = new LinkedHashMap<>();
+    tender.put("type", "object");
+    tender.put("properties", tenderProps);
+    tender.put("required", new ArrayList<>(tenderProps.keySet()));
+    tender.put("additionalProperties", false);
     Map<String, Object> schema = new LinkedHashMap<>();
     schema.put("type", "object");
     schema.put("properties", Map.of(
-        "tender", Map.of("type", "object"),
+        "tender", tender,
         "requirements", Map.of("type", "array", "items", requirement)));
-    schema.put("required", List.of("requirements"));
+    schema.put("required", List.of("tender", "requirements"));
     schema.put("additionalProperties", false);
     return schema;
+  }
+
+  private static Map<String, Object> nullable(String type) {
+    return Map.of("type", List.of(type, "null"));
   }
 
   private Extraction.Result parseAndValidate(String outputText) {
@@ -197,7 +224,11 @@ public class MuseSparkExtractor implements RequirementExtractor {
         errors.add(where + ": confidence " + raw.confidence() + " out of [0.0, 1.0]");
         continue;
       }
-      ConditionNode tree = raw.conditionTree();
+      int failures = errors.size();
+      ConditionNode tree = toTree(raw.conditionTree(), where, errors);
+      if (errors.size() != failures) {
+        continue;
+      }
       if (tree != null && !validTree(tree)) {
         errors.add(where + ": malformed conditionTree");
         continue;
@@ -219,6 +250,34 @@ public class MuseSparkExtractor implements RequirementExtractor {
         parsed.tender() == null ? null : parsed.tender().tenderFeeText(),
         parsed.tender() == null ? null : parsed.tender().deadlineText());
     return new Extraction.Result(tender, items);
+  }
+
+  /**
+   * Reads the condition tree in its strict-schema string form, tolerating the
+   * legacy object form (non-strict callers, golden fixtures).
+   */
+  private ConditionNode toTree(JsonNode node, String where, List<String> errors) {
+    if (node == null || node.isNull()) {
+      return null;
+    }
+    if (node.isTextual()) {
+      try {
+        return objectMapper.readValue(node.asText(), ConditionNode.class);
+      } catch (IOException e) {
+        errors.add(where + ": conditionTree string is not valid JSON: " + oneLine(e));
+        return null;
+      }
+    }
+    if (node.isObject()) {
+      try {
+        return objectMapper.treeToValue(node, ConditionNode.class);
+      } catch (IOException e) {
+        errors.add(where + ": malformed conditionTree: " + oneLine(e));
+        return null;
+      }
+    }
+    errors.add(where + ": conditionTree must be a JSON-encoded string or object");
+    return null;
   }
 
   private boolean validTree(ConditionNode node) {
@@ -258,7 +317,7 @@ public class MuseSparkExtractor implements RequirementExtractor {
       String clauseRef, String category, Boolean mandatory, Boolean mandatoryAmbiguous,
       String metric, String operator, String amountText, Integer countValue,
       Integer lookbackYears, List<String> domainTags, String certificateName,
-      Integer certificateLevel, ConditionNode conditionTree, Long sourceRegionId,
+      Integer certificateLevel, JsonNode conditionTree, Long sourceRegionId,
       String originalQuote, Double confidence, String amendmentAction,
       String targetClauseRef) {}
 

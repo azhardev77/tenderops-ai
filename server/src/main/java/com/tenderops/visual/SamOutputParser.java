@@ -1,149 +1,162 @@
 package com.tenderops.visual;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
- * Parses SAM 3.1 structured output per AI_INTEGRATION.md §3.2.
+ * Parses SAM 3.1 structured output (live-verified 2026-11-05 probe).
  *
- * <p>PROVISIONAL GRAMMAR (UNVERIFIED — no live probe has run; corrected by the M3 probe when a
- * key exists): records split on top-level commas; {@code box[x1,y1,x2,y2]} or
- * {@code box[x1,y1,x2,y2,c=conf]} in source-image pixels (top-left origin); optional
- * {@code mask[h=H,w=W,enc=ENC,data=DATA]} attaching to the immediately preceding box
- * (orphan masks are ignored with a logged note). Boxes are clamped to the image.
+ * <p>Grammar: {@code <|box;x1=..;y1=..;x2=..;y2=..[;c=..][;w=..;h=..]|>} records in
+ * source-image pixels (top-left origin), normalized by the embedded {@code w/h} when
+ * present else the rendered image size; optional
+ * {@code <|mask;x=..;y=..;data=..|>} attaching to the immediately preceding box
+ * (orphan masks are ignored). The mask {@code data} blob runs to the end of its span
+ * (it may itself contain {@code ;} and {@code =}).
+ *
+ * <p>A {@code <0f>} header/counter prefix, whitespace and digits between spans are
+ * skipped; natural-language prose fails closed. Blank output means the model found
+ * nothing and yields zero detections (still a live outcome, never an error).
  */
 public final class SamOutputParser {
 
   public record SamBox(double x0, double y0, double x1, double y1, double confidence,
       String maskRef) {}
 
+  private static final Pattern HEADER_TAIL = Pattern.compile("(\\s|<[^<>|]*>|\\d+)*");
+  private static final Set<String> BOX_KEYS = Set.of("x1", "y1", "x2", "y2", "c", "w", "h");
+  private static final Set<String> MASK_SCALARS = Set.of("x", "y", "h", "w", "enc");
+
   private SamOutputParser() {}
 
   public static List<SamBox> parse(String output, int imageWidth, int imageHeight) {
-    if (output == null || output.isBlank()) {
-      throw new SamFormatException("Empty SAM output");
-    }
     List<SamBox> boxes = new ArrayList<>();
-    List<String> records = splitTopLevel(output);
+    if (output == null || output.isBlank()) {
+      return boxes;
+    }
+    StringBuilder rest = new StringBuilder();
+    int cursor = 0;
     int pendingBox = -1;
-    for (String record : records) {
-      String trimmed = record.trim();
-      if (trimmed.startsWith("box[")) {
-        boxes.add(parseBox(trimmed, imageWidth, imageHeight));
+    while (true) {
+      int start = output.indexOf("<|", cursor);
+      if (start < 0) {
+        rest.append(output, cursor, output.length());
+        break;
+      }
+      rest.append(output, cursor, start);
+      int end = output.indexOf("|>", start + 2);
+      if (end < 0) {
+        throw new SamFormatException(
+            "Unterminated SAM record: " + abbreviate(output.substring(start)));
+      }
+      String span = output.substring(start, end + 2);
+      String inner = output.substring(start + 2, end);
+      int sep = inner.indexOf(';');
+      String kind = sep < 0 ? inner : inner.substring(0, sep);
+      if ("box".equals(kind)) {
+        boxes.add(parseBox(sep < 0 ? "" : inner.substring(sep + 1), imageWidth,
+            imageHeight, span));
         pendingBox = boxes.size() - 1;
-      } else if (trimmed.startsWith("mask[")) {
-        parseMask(trimmed);
+      } else if ("mask".equals(kind)) {
+        parseMask(inner, span);
         if (pendingBox >= 0 && boxes.get(pendingBox).maskRef() == null) {
           SamBox prev = boxes.get(pendingBox);
           boxes.set(pendingBox, new SamBox(prev.x0(), prev.y0(), prev.x1(), prev.y1(),
-              prev.confidence(), trimmed));
+              prev.confidence(), span));
         }
       } else {
-        throw new SamFormatException("Unknown SAM record: " + abbreviate(trimmed));
+        throw new SamFormatException("Unknown SAM record: " + abbreviate(span));
       }
+      cursor = end + 2;
     }
-    if (boxes.isEmpty()) {
-      throw new SamFormatException("SAM output contains no box records");
+    if (!HEADER_TAIL.matcher(rest.toString()).matches()) {
+      throw new SamFormatException("Unparseable SAM text: " + abbreviate(rest.toString()));
     }
     return boxes;
   }
 
-  private static List<String> splitTopLevel(String output) {
-    List<String> parts = new ArrayList<>();
-    StringBuilder current = new StringBuilder();
-    int depth = 0;
-    boolean inQuotes = false;
-    for (int i = 0; i < output.length(); i++) {
-      char c = output.charAt(i);
-      if (c == '"' && (i == 0 || output.charAt(i - 1) != '\\')) {
-        inQuotes = !inQuotes;
-        current.append(c);
-      } else if (!inQuotes && c == '[') {
-        depth++;
-        current.append(c);
-      } else if (!inQuotes && c == ']') {
-        depth--;
-        if (depth < 0) {
-          throw new SamFormatException("Unbalanced brackets in SAM output");
-        }
-        current.append(c);
-      } else if (!inQuotes && depth == 0 && c == ',') {
-        parts.add(current.toString());
-        current.setLength(0);
-      } else {
-        current.append(c);
+  private static SamBox parseBox(String fieldsText, int imageWidth, int imageHeight,
+      String span) {
+    Map<String, String> fields = new LinkedHashMap<>();
+    for (String segment : fieldsText.split(";", -1)) {
+      if (segment.isEmpty()) {
+        continue;
+      }
+      int eq = segment.indexOf('=');
+      if (eq <= 0) {
+        throw new SamFormatException("Bad box field: " + abbreviate(span));
+      }
+      fields.put(segment.substring(0, eq), segment.substring(eq + 1));
+    }
+    for (String key : fields.keySet()) {
+      if (!BOX_KEYS.contains(key)) {
+        throw new SamFormatException(
+            "Unknown box key '" + key + "': " + abbreviate(span));
       }
     }
-    if (depth != 0 || inQuotes) {
-      throw new SamFormatException("Unbalanced brackets/quotes in SAM output");
-    }
-    parts.add(current.toString());
-    return parts;
-  }
-
-  private static SamBox parseBox(String record, int imageWidth, int imageHeight) {
-    String inner = innerOf(record, "box");
-    String[] fields = inner.split(",");
-    if (fields.length < 4 || fields.length > 5) {
-      throw new SamFormatException("box record needs 4 pixels + optional c=: " + record);
-    }
-    double x1 = pixel(fields[0]);
-    double y1 = pixel(fields[1]);
-    double x2 = pixel(fields[2]);
-    double y2 = pixel(fields[3]);
+    double x1 = pixel(fields, "x1", span);
+    double y1 = pixel(fields, "y1", span);
+    double x2 = pixel(fields, "x2", span);
+    double y2 = pixel(fields, "y2", span);
     if (!(x2 > x1) || !(y2 > y1)) {
-      throw new SamFormatException("Degenerate box: " + record);
+      throw new SamFormatException("Degenerate box: " + abbreviate(span));
     }
     double confidence = 0.90;
-    if (fields.length == 5) {
-      String conf = fields[4].trim();
-      if (!conf.startsWith("c=")) {
-        throw new SamFormatException("Bad 5th box field (want c=): " + record);
-      }
-      confidence = number(conf.substring(2), "confidence");
+    if (fields.containsKey("c")) {
+      confidence = number(fields.get("c"), "confidence");
       if (confidence < 0.0 || confidence > 1.0) {
-        throw new SamFormatException("Confidence out of [0,1]: " + record);
+        throw new SamFormatException(
+            "Confidence out of [0,1]: " + abbreviate(span));
       }
     }
-    return new SamBox(clamp(x1 / imageWidth), clamp(y1 / imageHeight),
-        clamp(x2 / imageWidth), clamp(y2 / imageHeight), confidence, null);
+    double width = fields.containsKey("w") ? positive(fields, "w", span) : imageWidth;
+    double height = fields.containsKey("h") ? positive(fields, "h", span) : imageHeight;
+    return new SamBox(clamp(x1 / width), clamp(y1 / height), clamp(x2 / width),
+        clamp(y2 / height), confidence, null);
   }
 
-  private static void parseMask(String record) {
-    String inner = innerOf(record, "mask");
-    String height = null;
-    String width = null;
-    String enc = null;
-    String data = null;
-    for (String field : inner.split(",")) {
-      String[] kv = field.split("=", 2);
-      if (kv.length != 2 || kv[0].isBlank() || kv[1].isBlank()) {
-        throw new SamFormatException("Bad mask field: " + record);
+  private static void parseMask(String inner, String span) {
+    if (inner.length() <= "mask".length() + 1) {
+      throw new SamFormatException("Mask needs data: " + abbreviate(span));
+    }
+    String tail = inner.substring("mask".length() + 1);
+    while (true) {
+      if (tail.startsWith("data=")) {
+        if (tail.length() <= "data=".length()) {
+          throw new SamFormatException("Mask needs data: " + abbreviate(span));
+        }
+        return;
       }
-      switch (kv[0].trim()) {
-        case "h" -> height = kv[1].trim();
-        case "w" -> width = kv[1].trim();
-        case "enc" -> enc = kv[1].trim();
-        case "data" -> data = kv[1].trim();
-        default -> throw new SamFormatException("Unknown mask key: " + record);
+      int semi = tail.indexOf(';');
+      if (semi < 0) {
+        throw new SamFormatException("Mask needs data: " + abbreviate(span));
+      }
+      String pair = tail.substring(0, semi);
+      tail = tail.substring(semi + 1);
+      int eq = pair.indexOf('=');
+      if (eq <= 0 || pair.substring(eq + 1).isBlank()
+          || !MASK_SCALARS.contains(pair.substring(0, eq))) {
+        throw new SamFormatException("Bad mask field: " + abbreviate(span));
       }
     }
-    if (height == null || width == null || enc == null || data == null) {
-      throw new SamFormatException("Mask needs h/w/enc/data: " + record);
-    }
-    number(height, "mask h");
-    number(width, "mask w");
   }
 
-  private static String innerOf(String record, String kind) {
-    if (!record.endsWith("]")) {
-      throw new SamFormatException("Unterminated " + kind + " record: " + record);
+  private static double pixel(Map<String, String> fields, String key, String span) {
+    if (!fields.containsKey(key)) {
+      throw new SamFormatException("Box needs " + key + ": " + abbreviate(span));
     }
-    return record.substring(kind.length() + 1, record.length() - 1);
+    return number(fields.get(key), "pixel");
   }
 
-  private static double pixel(String field) {
-    return number(field.trim(), "pixel");
+  private static double positive(Map<String, String> fields, String key, String span) {
+    double value = number(fields.get(key), key);
+    if (!(value > 0)) {
+      throw new SamFormatException("Box " + key + " must be positive: " + span);
+    }
+    return value;
   }
 
   private static double number(String field, String what) {

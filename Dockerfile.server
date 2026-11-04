@@ -1,0 +1,20 @@
+# TenderOps AI server image: Maven build + Temurin 21 JRE runtime, non-root.
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /src
+COPY server/pom.xml ./server/pom.xml
+RUN mvn -B -q -f server/pom.xml dependency:go-offline
+COPY server/src ./server/src
+RUN mvn -B -f server/pom.xml -DskipTests package
+
+FROM eclipse-temurin:21-jre
+RUN groupadd -r tenderops && useradd -r -g tenderops tenderops \
+  && mkdir -p /app/data && chown -R tenderops:tenderops /app
+USER tenderops
+WORKDIR /app
+COPY --from=build --chown=tenderops:tenderops /src/server/target/tenderops-server-*.jar /app/server.jar
+VOLUME /app/data
+EXPOSE 8080
+ENV SPRING_PROFILES_ACTIVE=postgres \
+  TENDEROPS_STORAGE_DIR=/app/data \
+  JAVA_OPTS="-XX:MaxRAMPercentage=75.0"
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/server.jar"]

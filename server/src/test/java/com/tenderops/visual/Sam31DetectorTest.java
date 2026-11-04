@@ -45,8 +45,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 class Sam31DetectorTest {
 
-  private static final String OUTPUT_TEXT =
-      "box[10,20,110,220,c=0.95],mask[h=200,w=100,enc=b85,data=QUJD]";
+  private static final String OUTPUT_TEXT = "<0f>0"
+      + "<|box;x1=10;y1=20;x2=110;y2=220;c=0.95;w=200;h=400|>"
+      + "<|mask;x=0;y=0;data=QUJD|>";
 
   private static HttpServer server;
   private static final Deque<Behavior> script = new ArrayDeque<>();
@@ -182,7 +183,7 @@ class Sam31DetectorTest {
     assertThat(first.y1()).isEqualTo(0.55);
     assertThat(first.confidence()).isEqualTo(0.95);
     assertThat(first.source()).isEqualTo(VisualRegion.SOURCE_SAM);
-    assertThat(first.maskRef()).isEqualTo("mask[h=200,w=100,enc=b85,data=QUJD]");
+    assertThat(first.maskRef()).isEqualTo("<|mask;x=0;y=0;data=QUJD|>");
 
     assertThat(hitCount()).isEqualTo(3);
     CapturedRequest request;
