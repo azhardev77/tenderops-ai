@@ -70,7 +70,10 @@ machine speed without surrendering legal-grade traceability.
 ## Limitations
 
 - No Docker here, so compose build/run is UNVERIFIED (YAML validated only).
-- No full Playwright UI flow (browsers install fine; no time for the spec).
+- No passing Playwright UI flow yet: the spec + runner exist
+  (client/e2e/golden-flow.spec.ts, scripts/run-e2e) but are NOT_RUN — the
+  sandbox blocks listening sockets (binds EACCES); re-run scripts/run-e2e
+  twice on a normal machine (see docs/TEST_REPORT.md).
 - Agent MODEL_DRIVEN live run not attempted (tool channel verified, run NOT_RUN).
 - `mvn`/`npm` scripts run here with sandbox-required transport flags
   (offline repo, proxy/cache); the committed scripts use plain commands and are
@@ -86,6 +89,8 @@ machine speed without surrendering legal-grade traceability.
   agent live run; init-env default path (refused to overwrite the real .env);
   verify-all/run-tests verbatim (sandbox network); .sh mirrors except
   start/stop/check/init/sweep (bash -n clean, logic-mirrored).
-- NOT_RUN: TC-E2E-02 full UI flow; PRB-02; 5-parallel-upload/JVM-memory
-  measurements; mutation sanity TC-MUT-01..08; M9 doc package above.
+- NOT_RUN: TC-E2E-02 full UI flow (spec+runner committed unexecuted); PRB-02;
+  5-parallel-upload/JVM-memory measurements; mutation sanity TC-MUT-01..08;
+  M9 doc package above (except TEST_REPORT.md, which now exists but covers
+  the TC-E2E-02 session only).
 - data/real/ holds only .gitkeep (no PDFs): no real-world robustness run.

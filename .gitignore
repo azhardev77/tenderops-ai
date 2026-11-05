@@ -23,6 +23,7 @@ target/
 *.log
 docs/test-logs/*.tmp
 docs/test-logs/server.err
+docs/test-logs/client-e2e.err
 
 # Native-run scratch (pid file, transient tokens/probes; see scripts/start-server)
 .run/
@@ -30,6 +31,9 @@ docs/test-logs/server.err
 data/storage-live/
 # Local Playwright browser binaries (TC-E2E-02 runs; users install to the default cache)
 .pw-browsers/
+# Playwright run outputs (the committed TC-E2E-02 assets live in docs/screenshots + docs/demo-assets)
+client/test-results/
+client/playwright-report/
 
 # IDE / OS
 .idea/

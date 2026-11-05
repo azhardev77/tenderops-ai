@@ -28,6 +28,10 @@ data/storage). After context loss: re-read MASTER_PROMPT.md + this file.
   Next: step 5 final commit, step 6 clean-start smoke.
 - MODEL_API_KEY is PRESENT: LIVE verified (MUSE+LIVE, SAM+LIVE on golden v1; strict
   schema, SAM grammar, summary budget and tool/image capabilities probe-verified).
+- TC-E2E-02 session 2026-11-05: spec (client/e2e/golden-flow.spec.ts) + runner
+  (scripts/run-e2e, scripts/reset-demo) authored, tsc clean, secret sweep PASS;
+  NOT_RUN (sandbox denies listening sockets — binds EACCES — and esbuild dies
+  EPERM above the repo; evidence in docs/TEST_REPORT.md). No prod/UI change.
 
 ## Feature matrix
 
@@ -169,8 +173,9 @@ the transport error. Also: probe-meta-api had a `$name:` parser bug + missing
 (PS 5.1 needs Create()/GetBytes).
 M8→deadline carryovers: README + SUBMISSION + DEMO_SCRIPT + LIVE record (steps 2-4),
 final hygiene + smoke (steps 5-6). UNVERIFIED: docker compose config/run (no Docker
-CLI/daemon). NOT_RUN: TC-E2E-02 full UI flow (browsers install OK, exit 0; no time
-for the spec), M9 extras (mutations, 500-iteration invariants, long benchmarks,
+CLI/daemon). NOT_RUN: TC-E2E-02 full UI flow (spec + runner authored 2026-11-05
+but never executed green — sandbox blocks binds; see docs/TEST_REPORT.md),
+M9 extras (mutations, 500-iteration invariants, long benchmarks,
 deep traceability).
 
 M3 failure-fix loop: (1) PDFBox 3 bare PDFStreamEngine registers NO state operators → vector
