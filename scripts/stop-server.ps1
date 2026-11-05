@@ -22,15 +22,15 @@ if ($proc.ProcessName -notmatch '^(java|javaw)$') {
   Write-Host "REFUSED: pid $pidValue is $($proc.ProcessName), not the server"
   exit 2
 }
-& taskkill /PID $pidValue | Out-Null
-$deadline = (Get-Date).AddSeconds(15)
+cmd.exe /c "taskkill /PID $pidValue >nul 2>nul"
+$deadline = (Get-Date).AddSeconds(5)
 while ((Get-Date) -lt $deadline) {
   if (-not (Get-Process -Id $pidValue -ErrorAction SilentlyContinue)) { break }
   Start-Sleep -Milliseconds 500
 }
 if (Get-Process -Id $pidValue -ErrorAction SilentlyContinue) {
-  & taskkill /F /PID $pidValue | Out-Null
-  Start-Sleep -Seconds 2
+  cmd.exe /c "taskkill /PID $pidValue /T /F >nul 2>nul"
+  Start-Sleep -Seconds 1
 }
 if (Get-Process -Id $pidValue -ErrorAction SilentlyContinue) {
   Write-Host "FAILED to stop pid $pidValue"

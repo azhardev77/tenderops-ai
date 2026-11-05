@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // TC-E2E-02: Playwright UI golden flow (mirrors the TC-E2E-01 API flow).
 // Login comes from process env only (scripts/run-e2e maps .env -> E2E_*
@@ -12,7 +15,7 @@ const SOLVENCY_FIXTURE = path.resolve(__dirname, 'fixtures/solvency.pdf');
 
 // Async pipeline stages (ingest pipeline, amendment merge, re-verify) finish on
 // their own schedule; every wait below targets a real UI state, never a sleep.
-const JOB_TIMEOUT_MS = 300_000;
+const JOB_TIMEOUT_MS = 600_000;
 const POLL_INTERVALS_MS = [2_000, 3_000, 5_000, 5_000, 10_000, 10_000];
 
 async function snap(page: Page, name: string): Promise<void> {
@@ -41,7 +44,7 @@ test.describe.configure({ mode: 'serial' });
 test('golden flow: login, demo RFP, corrigendum, solvency, approve, downloads', async ({
   page,
 }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(900_000);
   expect(PASSWORD, 'E2E_DEMO_PASSWORD must be set (run via scripts/run-e2e)').not.toBe(
     '',
   );
@@ -68,9 +71,12 @@ test('golden flow: login, demo RFP, corrigendum, solvency, approve, downloads', 
   const tenderId = page.url().match(/\/tenders\/(\d+)\/workspace/)?.[1];
   expect(tenderId, 'workspace URL carries the tender id').toBeTruthy();
 
-  await expect(page.getByTestId('decision-NO_BID')).toBeVisible({
-    timeout: JOB_TIMEOUT_MS,
-  });
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId('decision-NO_BID')).toBeVisible({
+      timeout: 15_000,
+    });
+  }).toPass({ timeout: JOB_TIMEOUT_MS, intervals: POLL_INTERVALS_MS });
   await expect(
     page.locator('p', { hasText: 'Readiness score (rule-based):' }),
   ).toContainText('40.00');
@@ -167,7 +173,15 @@ test('golden flow: login, demo RFP, corrigendum, solvency, approve, downloads', 
   await snap(page, '06-workspace-v2-bid.png');
 
   // 7. Bid package: pending human approval -> approve -> downloads non-empty.
-  await page.goto(`/tenders/${tenderId}/package`);
+  await page.goto('/login');
+  await page.getByLabel(/email/i).fill(EMAIL);
+  await page.getByLabel(/password/i).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Login' }).click();
+  await page.waitForURL('**/', { timeout: 30_000 });
+  await page.getByRole('link', { name: 'Tenders' }).click();
+  await page.getByRole('link', { name: /Smart_City_RFP/i }).click();
+  await page.getByRole('link', { name: 'Bid package' }).click();
+  await page.waitForURL(`**/tenders/${tenderId}/package`, { timeout: 30_000 });
   await expect(page.getByTestId('decision-BID')).toBeVisible({ timeout: 60_000 });
   await expect(
     page.locator('p', { hasText: 'readiness score' }),

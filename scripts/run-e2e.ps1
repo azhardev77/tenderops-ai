@@ -99,18 +99,28 @@ try {
   }
   exit $code
 } finally {
+  $ErrorActionPreference = "SilentlyContinue"
   Set-Location $Root
   $clientPidFile = "$Root\.run\client.pid"
   if (Test-Path $clientPidFile) {
     $cid = (Get-Content $clientPidFile -Raw).Trim()
-    if ($cid -match '^\d+$' -and (Get-Process -Id $cid -ErrorAction SilentlyContinue)) {
-      & taskkill /T /PID $cid | Out-Null
-      Start-Sleep -Seconds 2
-      if (Get-Process -Id $cid -ErrorAction SilentlyContinue) { & taskkill /F /T /PID $cid | Out-Null }
+    if ($cid -match '^\d+$') {
+      cmd.exe /c "taskkill /PID $cid >nul 2>nul"
+      Start-Sleep -Milliseconds 500
+      cmd.exe /c "taskkill /PID $cid /T /F >nul 2>nul"
     }
-    Remove-Item $clientPidFile -Force
+    Remove-Item $clientPidFile -Force -ErrorAction SilentlyContinue
     Write-Host "client stopped"
   }
-  & "$Root\scripts\stop-server.ps1" | Out-Null
+  & "$Root\scripts\stop-server.ps1" 2>&1 | Out-Null
   Write-Host "run-e2e cleanup done"
+
+  $openPorts = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+    Where-Object { $_.LocalPort -in 8080, 5173 }
+  if ($openPorts) {
+    Write-Host "WARNING: ports 8080/5173 still listening:"
+    $openPorts | Select-Object LocalAddress, LocalPort, OwningProcess | Out-String | Write-Host
+  } else {
+    Write-Host "Verified: ports 8080 and 5173 are free."
+  }
 }
